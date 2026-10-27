@@ -1,8 +1,9 @@
 # Fallout Tactics: Community Edition -- the fotgame engine and its tools.
 #
-# Native (fotgame, mapview, sprview, sprtrim):
+# Native (fotgame, mapview, sprview, sprtrim; on macOS also Fallout Tactics CE.app):
 #   cmake -S . -B build
 #   cmake --build build --parallel
+#   cmake --install build --prefix <dir>   -> the layout of a release zip
 #
 # Web (fotgame only, the build the RerunReactor shell loads):
 #   source <emsdk>/emsdk_env.sh
@@ -35,7 +36,7 @@ if(CMAKE_HOST_APPLE AND NOT CMAKE_TOOLCHAIN_FILE)
     set(CMAKE_OSX_DEPLOYMENT_TARGET "10.15" CACHE STRING "Minimum macOS version to target.")
 endif()
 
-project(fallout-tactics-ce LANGUAGES C CXX)
+project(fallout-tactics-ce VERSION 0.1.0 LANGUAGES C CXX)
 
 # Keep the builder's absolute paths out of the binaries: __FILE__ (in asserts,
 # including stb_image's) and debug info see paths relative to the source and
@@ -178,8 +179,11 @@ endif()
 fot_configure_target(fot_shared)
 
 # --- fotgame: the engine ---------------------------------------------------------
-add_executable(fotgame
+# WIN32: on Windows a GUI program, so a double-click opens no console window
+# (launch.cpp reattaches the console when it's started from one).
+add_executable(fotgame WIN32
     game/main.cpp
+    game/launch.cpp
     game/scene.cpp
     game/move.cpp
     game/combat.cpp
@@ -196,6 +200,22 @@ add_executable(fotgame
 target_include_directories(fotgame PRIVATE game)
 target_link_libraries(fotgame PRIVATE fot_shared)
 fot_configure_target(fotgame)
+
+# The folder picker a double-clicked fotgame shows (game/launch.h), and the
+# Windows icon and version information.
+if(WIN32)
+    set(FOT_WINDOWS_ICON "${PROJECT_SOURCE_DIR}/packaging/windows/fotgame.ico")
+    configure_file(packaging/windows/fotgame.rc.in "${PROJECT_BINARY_DIR}/fotgame.rc" @ONLY)
+    target_sources(fotgame PRIVATE "${PROJECT_BINARY_DIR}/fotgame.rc")
+    target_link_libraries(fotgame PRIVATE ole32 uuid)
+elseif(APPLE)
+    # Objective-C++, compiled by the C++ compiler. Enabling CMake's OBJCXX
+    # language instead would also claim the fetched SDL2's .m files.
+    set_source_files_properties(game/folder_picker_mac.mm PROPERTIES
+        LANGUAGE CXX COMPILE_OPTIONS "-xobjective-c++")
+    target_sources(fotgame PRIVATE game/folder_picker_mac.mm)
+    target_link_libraries(fotgame PRIVATE "-framework AppKit")
+endif()
 
 if(EMSCRIPTEN)
     # The rest of the old game/Makefile's EMLINK, unchanged; the RerunReactor
@@ -261,7 +281,43 @@ else()
     target_link_libraries(sprtrim PRIVATE fot_shared)
     fot_configure_target(sprtrim)
 
-    install(TARGETS fotgame mapview sprview sprtrim RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
+    # --- The Mac app -------------------------------------------------------------
+    # "Fallout Tactics CE.app" next to fotgame in <build>/bin, refreshed after
+    # every link: the same binary, an Info.plist and the icon. Signing it ad hoc
+    # seals the bundle; it isn't a Developer ID signature, so a downloaded copy
+    # still has to be allowed once in System Settings.
+    if(APPLE)
+        set(FOT_APP "${PROJECT_BINARY_DIR}/bin/Fallout Tactics CE.app")
+        configure_file(packaging/macos/Info.plist.in "${PROJECT_BINARY_DIR}/Info.plist" @ONLY)
+        add_custom_command(TARGET fotgame POST_BUILD
+            COMMAND "${CMAKE_COMMAND}" -E make_directory
+                    "${FOT_APP}/Contents/MacOS" "${FOT_APP}/Contents/Resources"
+            COMMAND "${CMAKE_COMMAND}" -E copy
+                    "$<TARGET_FILE:fotgame>" "${FOT_APP}/Contents/MacOS/fotgame"
+            COMMAND "${CMAKE_COMMAND}" -E copy
+                    "${PROJECT_BINARY_DIR}/Info.plist" "${FOT_APP}/Contents/Info.plist"
+            COMMAND "${CMAKE_COMMAND}" -E copy
+                    "${PROJECT_SOURCE_DIR}/packaging/macos/AppIcon.icns"
+                    "${FOT_APP}/Contents/Resources/AppIcon.icns"
+            COMMAND codesign --force --sign - --timestamp=none "${FOT_APP}"
+            VERBATIM)
+    endif()
+
+    # --- What the release zips hold ------------------------------------------------
+    # The game where a player looks for it, at the top: fotgame.exe on Windows,
+    # the app on macOS. The modding tools go in tools/. Linux keeps bin/.
+    if(WIN32)
+        install(TARGETS fotgame RUNTIME DESTINATION .)
+        install(TARGETS mapview sprview sprtrim RUNTIME DESTINATION tools)
+        install(FILES packaging/windows/how-to-play.txt DESTINATION . RENAME "How to play.txt")
+    elseif(APPLE)
+        install(DIRECTORY "${FOT_APP}" DESTINATION . USE_SOURCE_PERMISSIONS)
+        install(TARGETS mapview sprview sprtrim RUNTIME DESTINATION tools)
+        install(FILES packaging/macos/how-to-play.txt DESTINATION . RENAME "How to play.txt")
+    else()
+        install(TARGETS fotgame mapview sprview sprtrim RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
+        install(FILES packaging/linux/how-to-play.txt DESTINATION . RENAME "How to play.txt")
+    endif()
 
     # --- Tests ------------------------------------------------------------------
     if(FOT_TESTS)

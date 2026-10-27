@@ -1,0 +1,45 @@
+Fallout Tactics CE for Windows (preview)
+=======================================
+
+You need your own copy of Fallout Tactics: Brotherhood of Steel 1.27,
+from Steam or GOG.
+
+1. Unzip this folder anywhere.
+2. Double-click fotgame.exe.
+3. The first time, choose your Fallout Tactics folder: the one with the
+   core folder in it. Steam usually puts it in
+       C:\Program Files (x86)\Steam\steamapps\common\Fallout Tactics
+   and GOG in
+       C:\GOG Games\Fallout Tactics
+   It remembers the folder after that.
+
+You can also copy fotgame.exe into your Fallout Tactics folder, next to
+BOS.exe. It then finds the game by itself.
+
+If Windows says "Windows protected your PC", click "More info", then
+"Run anyway". The program isn't signed yet.
+
+
+Saves and bug reports
+---------------------
+Saves go to %APPDATA%\RerunReactor\Fallout Tactics CE\saves, apart from
+the original game's saves. The same folder has fotgame.log, the log of
+the last run: please attach it to bug reports.
+
+To choose a different game folder, delete game-folder.txt there.
+
+
+What to expect
+--------------
+This is a preview. The first mission plays from start to debrief.
+Character creation, multiplayer, movies, barter, targeted shots and some
+menus are missing. The full list:
+https://github.com/rerunreactor/fallout-tactics-ce/blob/main/docs/status.md
+
+Bugs and questions: https://github.com/rerunreactor/fallout-tactics-ce/issues
+
+The tools folder holds mapview, sprview and sprtrim: command-line tools
+for modders.
+
+Fallout Tactics CE is not affiliated with Bethesda Softworks, ZeniMax
+Media, Interplay Entertainment or Micro Forte.

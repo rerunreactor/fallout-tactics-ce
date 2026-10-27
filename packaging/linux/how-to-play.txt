@@ -1,0 +1,41 @@
+Fallout Tactics CE for Linux (preview)
+=====================================
+
+You need your own copy of Fallout Tactics: Brotherhood of Steel 1.27,
+from Steam or GOG, and SDL2 (on Debian and Ubuntu: sudo apt install
+libsdl2-2.0-0).
+
+1. Unzip this folder anywhere.
+2. Run bin/fotgame, from a file manager or a terminal.
+3. The first time, choose your Fallout Tactics folder: the one with the
+   core folder in it. The folder picker needs zenity or kdialog. Without
+   either, start the game with
+       bin/fotgame --campaign --assets "/path/to/Fallout Tactics/core"
+
+You can also put fotgame in the folder that holds core. It then finds the
+game by itself.
+
+
+Saves and bug reports
+---------------------
+Saves go to ~/.local/share/RerunReactor/Fallout Tactics CE/saves, apart
+from the original game's saves. The same folder has fotgame.log, the log of
+the last run: please attach it to bug reports.
+
+To choose a different game folder, delete game-folder.txt there.
+
+
+What to expect
+--------------
+This is a preview. The first mission plays from start to debrief.
+Character creation, multiplayer, movies, barter, targeted shots and some
+menus are missing. The full list:
+https://github.com/rerunreactor/fallout-tactics-ce/blob/main/docs/status.md
+
+Bugs and questions: https://github.com/rerunreactor/fallout-tactics-ce/issues
+
+bin/ also holds mapview, sprview and sprtrim: command-line tools for
+modders.
+
+Fallout Tactics CE is not affiliated with Bethesda Softworks, ZeniMax
+Media, Interplay Entertainment or Micro Forte.

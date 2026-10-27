@@ -152,6 +152,6 @@ jobs:
         run: |
           ls -l dist
           if ! gh release view "$TAG" > /dev/null 2>&1; then
-            gh release create "$TAG" --title "$TAG" --generate-notes --verify-tag
+            gh release create "$TAG" --title "Fallout Tactics CE ${TAG#v}" --generate-notes --verify-tag
           fi
           gh release upload "$TAG" dist/*.zip --clobber
