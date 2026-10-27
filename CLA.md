@@ -1,7 +1,8 @@
+# Contributor Agreement
 
-**Draft 0.1, 26 October 2026.** This draft is not in force yet. A lawyer needs to check it, and the parts in square brackets need filling in.
+**Draft 0.2, 26 October 2026.** This draft is not in force yet: a lawyer needs to check it first.
 
-This agreement is between you, the person signing it, and [MAINTAINER] ("the maintainer"). The maintainer runs [PROJECT] at [REPO URL] ("the project").
+This agreement is between you, the person signing it, and the person who runs RerunReactor (rerunreactor.com) and maintains this project ("the maintainer"). The project is Fallout Tactics CE, at https://github.com/rerunreactor/fallout-tactics-ce ("the project").
 
 It covers everything you contribute to the project ("your contributions"): code, documentation, data files you made, and changes to any of these.
 
@@ -28,5 +29,5 @@ You accept it by signing through the CLA Assistant bot while signed in to your G
 
 8. **How long it lasts.**
    - This agreement covers all your contributions, past and future.
-   - To stop it covering future contributions, tell the maintainer in writing at [CONTACT EMAIL]. Anything you contributed before then stays covered.
+   - To stop it covering future contributions, tell the maintainer in writing at hello@rerunreactor.com. Anything you contributed before then stays covered.
    - If this agreement changes, you'll be asked to sign the new version before your next contribution is merged.

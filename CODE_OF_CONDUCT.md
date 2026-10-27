@@ -9,4 +9,4 @@ In short:
 
 This applies in issues, pull requests and discussions, and anywhere else you represent the project.
 
-To report a problem, email [CONTACT EMAIL]. Reports are kept confidential.
+To report a problem, email hello@rerunreactor.com. Reports are kept confidential.

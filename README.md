@@ -6,6 +6,8 @@ You need your own copy of the game. This repository contains none of the game's 
 
 > This project is not affiliated with or endorsed by Bethesda Softworks, ZeniMax Media, Interplay Entertainment or Micro Forté. Fallout is a trademark of ZeniMax Media Inc.
 
+Maintained by [RerunReactor](https://rerunreactor.com).
+
 ## Status
 
 `fotgame` loads your 1.27 game data, reading its `.bos` archives in place, and plays the campaign's missions with rules ported from the original executable. The first mission plays from start to debrief.

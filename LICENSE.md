@@ -1,6 +1,6 @@
 # License
 
-Copyright (c) 2026 [MAINTAINER]
+Copyright (c) 2026 RerunReactor
 
 Everything in this repository is licensed under the Sustainable Use License 1.0, with one additional condition (share your changes). Both follow below. There are two exceptions:
 
