@@ -1,6 +1,6 @@
 # Contributor Agreement
 
-**Draft 0.2, 26 October 2026.** This draft is not in force yet: a lawyer needs to check it first.
+**Version 1.0, 26 October 2026.**
 
 This agreement is between you, the person signing it, and the person who runs RerunReactor (rerunreactor.com) and maintains this project ("the maintainer"). The project is Fallout Tactics CE, at https://github.com/rerunreactor/fallout-tactics-ce ("the project").
 
