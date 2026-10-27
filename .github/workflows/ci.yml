@@ -1,0 +1,157 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  native:
+    name: ${{ matrix.name }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Linux x64
+            os: ubuntu-latest
+            package: fallout-tactics-ce-linux-x64
+          - name: macOS (universal)
+            os: macos-latest
+            package: fallout-tactics-ce-macos
+          - name: Windows x64
+            os: windows-latest
+            package: fallout-tactics-ce-windows-x64
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # Linux builds against the distribution's SDL2 and zlib, as fallout2-ce's
+      # Linux builds do. macOS and Windows fetch and build the pinned copies
+      # (third_party/sdl2, third_party/zlib), so their binaries stand alone.
+      - name: Install SDL2 and zlib
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libsdl2-dev zlib1g-dev
+
+      - name: Configure
+        run: |
+          args=(-DCMAKE_BUILD_TYPE=Release)
+          case "$RUNNER_OS" in
+            Linux) args+=(-DFOT_VENDORED=OFF) ;;
+            macOS) args+=("-DCMAKE_OSX_ARCHITECTURES=arm64;x86_64") ;;
+          esac
+          cmake -S . -B build "${args[@]}"
+
+      - name: Build
+        run: cmake --build build --config Release --parallel
+
+      # CI has no game data, so the data.* tests report themselves as
+      # skipped; the smoke.* tests still start every binary.
+      - name: Test
+        run: ctest --test-dir build --build-config Release --output-on-failure
+
+      - name: Package
+        run: |
+          dir="dist/${{ matrix.package }}"
+          cmake --install build --config Release --prefix "$dir"
+          for f in LICENSE.md README.md; do
+            if [ -f "$f" ]; then cp "$f" "$dir/"; fi
+          done
+          cd dist
+          cmake -E tar cf "${{ matrix.package }}.zip" --format=zip "${{ matrix.package }}"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.package }}
+          path: dist/${{ matrix.package }}.zip
+          if-no-files-found: error
+
+  web:
+    name: Web (Emscripten)
+    runs-on: ubuntu-latest
+    env:
+      # The emsdk the RerunReactor shell's copy of fotgame is built with.
+      EMSDK_VERSION: 4.0.4
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Emscripten ${{ env.EMSDK_VERSION }}
+        run: |
+          git clone --depth 1 https://github.com/emscripten-core/emsdk.git "$RUNNER_TEMP/emsdk"
+          "$RUNNER_TEMP/emsdk/emsdk" install "$EMSDK_VERSION"
+          "$RUNNER_TEMP/emsdk/emsdk" activate "$EMSDK_VERSION"
+
+      - name: Configure and build
+        run: |
+          source "$RUNNER_TEMP/emsdk/emsdk_env.sh"
+          emcmake cmake -S . -B build-web -DCMAKE_BUILD_TYPE=Release
+          cmake --build build-web --parallel
+
+      # What the shell (shell/src/engine.ts) relies on: the factory's name,
+      # the .wasm name the loader asks for, and the runtime methods it calls.
+      - name: Check the loader contract
+        run: |
+          js=build-web/bin/fotgame.js.js
+          test -s build-web/bin/fotgame.js.wasm
+          grep -q '^var falloutTacticsCe = ' "$js"
+          grep -q '"fotgame.js.wasm"' "$js"
+          for m in callMain FS ENV ccall UTF8ToString _rr_campaign_state; do
+            grep -q "Module\[\"$m\"\]" "$js" || { echo "missing Module.$m"; exit 1; }
+          done
+
+      - name: Package
+        run: |
+          dir=dist/fallout-tactics-ce-web
+          mkdir -p "$dir"
+          cp build-web/bin/fotgame.js.js build-web/bin/fotgame.js.wasm "$dir/"
+          if [ -f LICENSE.md ]; then cp LICENSE.md "$dir/"; fi
+          cd dist
+          cmake -E tar cf fallout-tactics-ce-web.zip --format=zip fallout-tactics-ce-web
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: fallout-tactics-ce-web
+          path: dist/fallout-tactics-ce-web.zip
+          if-no-files-found: error
+
+  release:
+    name: Release
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [native, web]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: Attach the zips to the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          ls -l dist
+          if ! gh release view "$TAG" > /dev/null 2>&1; then
+            gh release create "$TAG" --title "$TAG" --generate-notes --verify-tag
+          fi
+          gh release upload "$TAG" dist/*.zip --clobber
