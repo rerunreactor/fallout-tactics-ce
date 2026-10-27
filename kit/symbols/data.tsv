@@ -1,0 +1,32 @@
+address	size	name	type	source	verified_bos	verified_bos_hr
+007fd594	1	FLOATPOINT_ZERO	undefined	ftse	yes	yes
+0080c1c0	12	Actor::ClassType_vftable	pointer[3]	ftse	yes	yes
+008956d0	1	GBL_StringNone	undefined	ftse	yes	yes
+008a3e74	60	XPLevelValues	int[15]	ftse	yes	yes
+008a4500	4	PerkArray	pointer	ftse	yes	yes
+008a9110	192	TABLE_PenaltiesForRadLevel	int[6][8]	ftse	yes	yes
+008bba04	1	GBL_EmptyString	undefined	ftse	yes	yes
+008bc384	4	GblWGameMain	WGameMain *	ftse	yes	yes
+008bc564	4	WorldGlobal	World *	ftse	yes	yes
+008bc6d0	4	GBL_StringAttack	undefined4	ftse	yes	yes
+008bc6ec	4	GBL_StringDog	undefined4	ftse	yes	yes
+008bc71c	4	Gbl_StringDeath	undefined4	ftse	yes	yes
+008bc724	4	Gbl_StringFallenForward	undefined4	ftse	yes	yes
+008bc744	4	Gbl_StringHumanoid	undefined4	ftse	yes	yes
+008bc750	4	GBL_StringNone	undefined4	ftse	yes	yes
+008bc768	4	GBL_StringFallForward	undefined4	ftse	yes	yes
+008bc770	4	GBL_StringBurrowOut	undefined4	ftse	yes	yes
+008bc784	4	GBL_StringClimb	undefined4	ftse	yes	yes
+008bc794	4	GBL_StringBreathe	undefined4	ftse	yes	yes
+008bc79c	4	GBL_StringProne	undefined4	ftse	yes	yes
+008bc7b0	4	GBL_StringFallenBack	undefined4	ftse	yes	yes
+008bc7c0	4	GBL_StringBurrowed	undefined4	ftse	yes	yes
+008bc7c8	4	GBL_StringMagic	undefined4	ftse	yes	yes
+008bc7d4	4	GBL_StringBurrowing	undefined4	ftse	yes	yes
+008bc7d8	4	GBL_StringCrouch	undefined4	ftse	yes	yes
+008bc804	4	GBL_StringPickup	undefined4	ftse	yes	yes
+008bc814	4	GBL_StringStand	undefined4	ftse	yes	yes
+008bc83c	1	Actor::ClassTypeVtable	undefined	ftse	yes	yes
+008bd8b8	1	LocalizedStringsObject	undefined	ftse	yes	yes
+008bddb8	4	GBL_MenuManager	undefined4	ftse	yes	yes
+008bde98	12	light_level_maybe	float[3]	ftse	yes	yes

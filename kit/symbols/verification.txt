@@ -1,0 +1,37 @@
+How the symbol files were checked against the executables
+==========================================================
+
+Every named function was compared byte for byte with the same address in each executable;
+the file offset comes from the executable's PE section table. The program and both
+executables are linked at 0x400000 with the same sections, so no relocation masking is needed.
+Addresses below are addresses in the program, not file offsets.
+
+BOS.exe  SHA-256 c5b91fe56ef8de118ce22ccd5e6512f217ca16c8b8758ea14c626229eb5a4e40
+  bytes of the program that differ from this file: 66 in 5 ranges
+    006be2f1  15 bytes  .text
+    006be32d  3 bytes  .text
+    006c438b  6 bytes  .text
+    006c4392  41 bytes  .text
+    008a0028  1 byte  .data
+
+BOS_HR.exe  SHA-256 ae7ddade7f3c5c48552b54f72b795b3919477b789bba7c910db46c8e75c812d0
+  bytes of the program that differ from this file: 72 in 11 ranges
+    004b345e  1 byte  .text
+    004b3466  1 byte  .text
+    00654638  1 byte  .text
+    00654640  1 byte  .text
+    0065464c  1 byte  .text
+    00654654  1 byte  .text
+    006be2f1  15 bytes  .text
+    006be32d  3 bytes  .text
+    006c438b  6 bytes  .text
+    006c4392  41 bytes  .text
+    008a0028  1 byte  .data
+
+Named functions considered: 9439
+  verified for both executables:   9436
+  verified for BOS.exe only:       2
+  verified for BOS_HR.exe only:    0
+  verified for neither (listed in functions-unverified.tsv): 1
+
+Named data symbols: 31, verified for both executables: 31
