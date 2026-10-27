@@ -37,7 +37,7 @@ jobs:
             package: fallout-tactics-ce-windows-x64
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       # Linux builds against the distribution's SDL2 and zlib, as fallout2-ce's
       # Linux builds do. macOS and Windows fetch and build the pinned copies
@@ -75,7 +75,7 @@ jobs:
           cd dist
           cmake -E tar cf "${{ matrix.package }}.zip" --format=zip "${{ matrix.package }}"
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: ${{ matrix.package }}
           path: dist/${{ matrix.package }}.zip
@@ -89,7 +89,7 @@ jobs:
       EMSDK_VERSION: 4.0.4
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Install Emscripten ${{ env.EMSDK_VERSION }}
         run: |
@@ -124,7 +124,7 @@ jobs:
           cd dist
           cmake -E tar cf fallout-tactics-ce-web.zip --format=zip fallout-tactics-ce-web
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: fallout-tactics-ce-web
           path: dist/fallout-tactics-ce-web.zip
@@ -139,7 +139,7 @@ jobs:
       contents: write
 
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           path: dist
           merge-multiple: true
