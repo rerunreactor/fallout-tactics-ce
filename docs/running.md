@@ -9,13 +9,43 @@ Everything here runs against your own copy of Fallout Tactics: Brotherhood of St
   - about 40 `.bos` archives (`tiles_0.bos`, `entities_0.bos`, `spr-sprites_0.bos`, `Mis-Main_0.bos` and the rest);
   - loose folders, including `campaigns`, `entities`, `gui`, `locale`, `missions`, `music` and `sound`;
   - the game's settings files, `bos.cfg` and `keys.cfg`.
-- **A build.** See the [README](../README.md). With CMake, the programs end up in `build/bin/`: `fotgame`, `mapview`, `sprview` and `sprtrim`.
+- **A build.** Download one from the [releases](https://github.com/rerunreactor/fallout-tactics-ce/releases), or build it; see the [README](../README.md). With CMake, the programs end up in `build/bin/`: `fotgame`, `mapview`, `sprview` and `sprtrim`, and on macOS `Fallout Tactics CE.app`.
 
 `fotgame` reads the `.bos` archives in place. The three tools read loose files, so they need the archives extracted first; see [Extracting the archives](#extracting-the-archives).
 
-Nothing here modifies your installation, with one exception: **saves**. By default `fotgame` writes them to `<core>/user/save`, the folder the original uses. Until the original has been shown to load our saves (see [status](status.md)), keep them apart with `--save-dir`.
+Nothing here modifies your installation, with one exception: **saves**. Given options but no `--save-dir`, `fotgame` writes them to `<core>/user/save`, the folder the original uses. Until the original has been shown to load our saves (see [status](status.md)), keep them apart with `--save-dir`. Started with no options, `fotgame` already keeps them apart.
 
 ## fotgame
+
+### With no options
+
+This is what a double-click does, and what the Mac app does when it's opened.
+
+1. `fotgame` looks for the game: a folder holding the `.bos` archives, either `core` itself or a folder with `core` in it. It looks in this order:
+   1. the folder `fotgame` is in;
+   2. on macOS, the folder `Fallout Tactics CE.app` is in;
+   3. the folder chosen last time;
+   4. the current directory.
+2. If none of them has the game, it asks for the folder, with the system's folder picker. On Linux that needs `zenity` or `kdialog`.
+3. It starts the campaign at the title menu, as `--campaign` does.
+
+It keeps its files in the per-user folder for the platform, never in the game's folder:
+
+| | Folder |
+|---|---|
+| Windows | `%APPDATA%\RerunReactor\Fallout Tactics CE` |
+| macOS | `~/Library/Application Support/RerunReactor/Fallout Tactics CE` |
+| Linux | `~/.local/share/RerunReactor/Fallout Tactics CE` |
+
+That folder holds:
+
+- `saves/`, the saves;
+- `fotgame.log`, everything the last run printed, when it wasn't started from a terminal;
+- `game-folder.txt`, the game folder chosen in the picker. Delete it to be asked again.
+
+If the run fails, a dialog shows the end of the log.
+
+On Windows `fotgame.exe` is a windowed program, so a double-click opens no console. Started from a command prompt, it prints there as usual.
 
 ### The campaign
 
@@ -103,7 +133,7 @@ For now, turn-based play is available only through `--turnbased`.
 
 ### Options
 
-The tables below list every option `fotgame` parses. Running `fotgame` with no arguments prints a shorter summary.
+The tables below list every option `fotgame` parses. `fotgame --help` prints a shorter summary.
 
 Some values need explaining:
 

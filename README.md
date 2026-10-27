@@ -25,7 +25,18 @@ Maintained by [RerunReactor](https://rerunreactor.com).
 
 The full picture, including what's approximated and a list of good first issues, is in [docs/status.md](docs/status.md).
 
-## What you need
+## Playing
+
+Download the zip for your system from [Releases](https://github.com/rerunreactor/fallout-tactics-ce/releases), unzip it, and start the game. The first time, it asks for your Fallout Tactics folder: the one with `core` in it.
+
+- **Windows:** double-click `fotgame.exe`. Or copy it into your Fallout Tactics folder first, and it finds the game by itself. The program isn't signed yet, so Windows may say "Windows protected your PC": click "More info", then "Run anyway".
+- **macOS:** open `Fallout Tactics CE.app`. The first time, macOS stops it because it isn't signed by a registered developer: open System Settings, then Privacy & Security, and click "Open Anyway". The game is sold for Windows, so you need its files from a Windows copy; the zip's "How to play.txt" explains how.
+- **Linux:** run `bin/fotgame`. It needs SDL2, and zenity or kdialog for the folder picker.
+- **In a browser:** at [rerunreactor.com](https://rerunreactor.com), add your game's files.
+
+Saves are kept apart from the original game's, in your user folder. The zip's "How to play.txt" says where.
+
+## What you need to build it
 
 - **The game:** *Fallout Tactics: Brotherhood of Steel* 1.27, from Steam or GOG. You need its `core` folder.
 - **To build:** a C++17 compiler and CMake 3.22 or newer.
@@ -39,7 +50,7 @@ cmake -S . -B build
 cmake --build build --parallel
 ```
 
-The programs end up in `build/bin/`: `fotgame`, and the tools `mapview`, `sprview` and `sprtrim`. With Visual Studio they go in a folder for each configuration below that, such as `build/bin/Release/`.
+The programs end up in `build/bin/`: `fotgame`, and the tools `mapview`, `sprview` and `sprtrim`. On macOS, `Fallout Tactics CE.app` is there too. With Visual Studio they go in a folder for each configuration below that, such as `build/bin/Release/`. `cmake --install build --prefix <folder>` lays them out as a release zip does.
 
 The data tests run only when `FOT_DATA_DIR` points at your game's `core` folder. Without it they're skipped:
 
@@ -64,7 +75,7 @@ That gives `build-web/bin/fotgame.js.js` and `fotgame.js.wasm`: a module for a w
 build/bin/fotgame --campaign --assets "/path/to/Fallout Tactics/core" --save-dir ~/fot-saves
 ```
 
-This opens the title menu. [docs/running.md](docs/running.md) covers the options, the controls, single missions and the tools.
+This opens the title menu. With no options at all, `fotgame` does what a double-click does: it finds the game, or asks for it, and keeps its saves in your user folder. [docs/running.md](docs/running.md) covers the options, the controls, single missions and the tools.
 
 Until the original has been shown to load our saves, keep ours away from your installation with `--save-dir`.
 
