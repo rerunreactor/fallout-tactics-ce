@@ -36,7 +36,13 @@ if(CMAKE_HOST_APPLE AND NOT CMAKE_TOOLCHAIN_FILE)
     set(CMAKE_OSX_DEPLOYMENT_TARGET "10.15" CACHE STRING "Minimum macOS version to target.")
 endif()
 
-project(fallout-tactics-ce VERSION 0.1.0 LANGUAGES C CXX)
+# The version stamped into the binaries: the Windows version information and
+# the Mac app's Info.plist. A release build takes it from its tag (CI passes
+# -DFOT_VERSION=0.1.1 for v0.1.1); otherwise this default applies, which
+# should be the latest release.
+set(FOT_VERSION "0.1.1" CACHE STRING "Version stamped into the binaries (major.minor.patch)")
+
+project(fallout-tactics-ce VERSION ${FOT_VERSION} LANGUAGES C CXX)
 
 # Keep the builder's absolute paths out of the binaries: __FILE__ (in asserts,
 # including stb_image's) and debug info see paths relative to the source and
