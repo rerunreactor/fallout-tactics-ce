@@ -1,0 +1,49 @@
+# Build output. Build outside the tree, or in a build*/ directory here:
+#   cmake -S . -B build && cmake --build build
+/build*/
+/out/
+/cmake-build-*/
+CMakeUserPresets.json
+compile_commands.json
+.cache/
+
+# What the old per-directory Makefiles left next to the sources.
+*.o
+*.d
+/game/obj/
+/game/aobj/
+/game/wobj/
+/game/web/
+/game/fotgame
+/game/fotgame_asan
+/mapview/mapview
+/sprview/sprview
+/sprtrim/sprtrim
+
+# Editors and operating systems.
+.vs/
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# The game's own files never belong in this repository: no archives,
+# sprites, tiles, maps, saves or images from it, and no copy of its core/
+# folder. The data tests read the player's copy through FOT_DATA_DIR.
+*.bos
+*.spr
+*.til
+*.mis
+*.sav
+*.zar
+*.ent
+*.cam
+*.bik
+/core/
+
+# Nor do executables or Ghidra projects, which contain the game's code.
+*.exe
+*.dll
+*.gar
+*.gpr
+*.rep/
