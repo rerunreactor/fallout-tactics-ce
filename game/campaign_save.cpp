@@ -482,7 +482,12 @@ void WriteCampaignSection(Writer& w, const CampaignState& s) {
     }
     w.F32(1.0f);              // +0x23
     w.U8(0);                  // +0x5c
-    w.I32(0);                 // +0xd1   (1 in the shipped save)
+    // +0xd1 is a list of strings, 16 bytes on from the movie lists at +0xb1
+    // and +0xc1, which hold four entries in the shipped save. This one holds
+    // one there, the current mission's name key, so the count is 1. Writing 0
+    // with the key after it misplaced every later field for a reader that
+    // follows the layout, as the save editor on rerunreactor.com does.
+    w.I32(1);
 
     // MILESTONE 25.  EVERYTHING FROM HERE WAS WRONG, and it is why the shipped
     // game answered "Unable to load campaign": this port wrote 148 bytes of
