@@ -2295,6 +2295,10 @@ void CampaignFrame(int64_t deltaMs) {
         case CampaignScreen::EndScreen: g.camUi->DrawEndScreen(&c, g.W, g.H); break;
         default: break;
     }
+    // The pointer, last, over everything. The OS cursor is hidden for the whole
+    // run (see SDL_ShowCursor), and these screens aren't drawn by `Ui::Draw`,
+    // which draws the mission's own cursor.
+    g.ui.DrawPointer(&c, g.mouseX, g.mouseY);
 }
 
 void RunCamScript() {
@@ -2515,6 +2519,10 @@ void RunCamScript() {
         } else if (verb == "click") {
             int64_t v[2] = {0, 0};
             if (ft::ParseInts(arg.c_str(), 2, v)) {
+                // A real click happens where the pointer is, so the scripted
+                // one moves it there too (and a capture shows it there).
+                g.mouseX = static_cast<int>(v[0]);
+                g.mouseY = static_cast<int>(v[1]);
                 CampaignClick(static_cast<int32_t>(v[0]), static_cast<int32_t>(v[1]));
             }
         }

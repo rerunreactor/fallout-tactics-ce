@@ -395,6 +395,14 @@ void Ui::DrawCursor(Canvas* c) {
     c->Blit(*it->second.art, m_mouseX - it->second.hotX, m_mouseY - it->second.hotY);
 }
 
+void Ui::DrawPointer(Canvas* c, int32_t x, int32_t y) const {
+    if (!m_ready || x < 0 || y < 0) return;
+    const auto it = m_cursors.find("normal");
+    if (it == m_cursors.end() || it->second.art == nullptr) return;
+    c->SetClip(0, 0, c->w, c->h);
+    c->Blit(*it->second.art, x - it->second.hotX, y - it->second.hotY);
+}
+
 void Ui::PushMessage(const std::string& s) {
     m_messages.push_back(s);
     if (m_messages.size() > 64) m_messages.erase(m_messages.begin());
