@@ -1,6 +1,7 @@
 # FotTests.cmake -- the CTest tests, included from the top-level CMakeLists.txt.
 #
-# smoke.*  Run each program with no input and expect its usage text. They need
+# smoke.*  Run each program for its usage text (fotgame with --help: with no
+#          arguments it looks for the game and starts the campaign). They need
 #          nothing, so CI runs them on every platform; they prove the binaries
 #          start (static SDL2 on Windows and macOS, the system SDL2 on Linux).
 #
@@ -23,7 +24,7 @@ set(FOT_DATA_WORK "${PROJECT_BINARY_DIR}/data-tests")
 set(FOT_DATA_DRIVER "${CMAKE_CURRENT_LIST_DIR}/FotDataTest.cmake")
 
 # --- smoke ---------------------------------------------------------------------
-add_test(NAME smoke.fotgame COMMAND fotgame)
+add_test(NAME smoke.fotgame COMMAND fotgame --help)
 add_test(NAME smoke.mapview COMMAND mapview)
 add_test(NAME smoke.sprview COMMAND sprview)
 add_test(NAME smoke.sprtrim COMMAND sprtrim --help)

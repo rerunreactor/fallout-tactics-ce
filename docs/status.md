@@ -98,6 +98,7 @@ It was checked against the code. In the source, every approximation is labelled 
 ### Builds
 
 - Native builds with CMake, and a browser build with Emscripten.
+- Release zips for Windows, macOS and Linux. Opened with no options, as a double-click does, `fotgame` finds the game or asks for it, and starts the campaign.
 
 ## History
 

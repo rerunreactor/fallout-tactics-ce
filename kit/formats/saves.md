@@ -187,8 +187,7 @@ The offsets are in the original's `Campaign` object.
 | 25 | 6 × { string, i32 } | | No meaning. A shipped save holds empty strings, and uninitialised memory (`0xCDCDCDCD`) in the ints. |
 | 26 | f32 | `+0x23` | Travel speed multiplier, 1.0. |
 | 27 | u8 | `+0x5c` | Unknown. |
-| 28 | i32 | `+0xd1` | Unknown. |
-| 29 | string | | The current mission's name key in the locale files. |
+| 28–29 | i32 n, then n strings | `+0xd1` | One entry in a shipped save: the current mission's name key in the locale files. |
 | 30 | i32 | `+0x18` | 10. Nothing we've read uses it. |
 | 31 | 2 × i32 | `+0xe1`, `+0xf1` | 0. |
 | 32 | i32 | `+0x14` | 1. |

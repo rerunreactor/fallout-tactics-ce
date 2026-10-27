@@ -33,6 +33,7 @@
 #include "scene.h"
 #include "vfs.h"
 #include "ui.h"
+#include "launch.h"
 
 #ifdef __EMSCRIPTEN__
 #include <emscripten.h>
@@ -3085,6 +3086,10 @@ void EmFrame() {
 void Usage() {
     std::fprintf(stderr,
                  "usage: fotgame <file.mis> [options]\n"
+                 "       fotgame --campaign [--assets <core>] [--save-dir <d>] [options]\n"
+                 "       fotgame            with nothing else: find the game (or ask for\n"
+                 "                          it) and start the campaign, as a double-click does\n"
+                 "  --help                                 this text\n"
                  "  --tiles <d> --sprites <d> --ents <d>   asset roots (default %s)\n"
                  "  --assets <d>                           all three at once\n"
                  "  --image-dump <rel>[:<out.png>]         load one image through the\n"
@@ -3219,7 +3224,10 @@ void Usage() {
 
 }  // namespace
 
-int main(int argc, char** argv) {
+// The engine as the command line drives it. main(), at the end of the file,
+// calls it directly when there are options, and with the campaign options
+// launch.h works out when there are none.
+static int RunGame(int argc, char** argv) {
     std::setvbuf(stdout, nullptr, _IONBF, 0);
     std::string mis;
     SceneOptions opt;
@@ -3289,7 +3297,10 @@ int main(int argc, char** argv) {
             }
             return argv[++i];
         };
-        if (a == "--tiles") {
+        if (a == "--help" || a == "-h") {
+            Usage();
+            return 0;
+        } else if (a == "--tiles") {
             opt.tileDir = next("--tiles");
         } else if (a == "--sprites") {
             opt.spriteDir = next("--sprites");
@@ -4415,7 +4426,7 @@ int main(int argc, char** argv) {
         return 1;
     }
     if (!g.headless) {
-        g.window = SDL_CreateWindow("Fallout Tactics", SDL_WINDOWPOS_CENTERED,
+        g.window = SDL_CreateWindow("Fallout Tactics CE", SDL_WINDOWPOS_CENTERED,
                                     SDL_WINDOWPOS_CENTERED, g.W, g.H, SDL_WINDOW_RESIZABLE);
         if (g.window == nullptr) {
             std::fprintf(stderr, "SDL_CreateWindow: %s\n", SDL_GetError());
@@ -4516,4 +4527,27 @@ int main(int argc, char** argv) {
     }
     SDL_Quit();
     return 0;
+}
+
+int main(int argc, char** argv) {
+    game::AttachParentConsole();
+    if (!game::IsPlayerLaunch(argc, argv)) return RunGame(argc, argv);
+
+    // A double-click, or the Mac app: find the game, keep the saves apart from
+    // the original's, and start at the title menu.
+    game::PlayerSetup setup;
+    if (!game::ResolvePlayerSetup(&setup)) return 0;
+    game::RedirectOutputToLog(setup.logPath);
+    std::vector<std::string> args = {argc > 0 ? argv[0] : "fotgame", "--campaign",
+                                     "--assets", setup.core, "--save-dir", setup.saveDir};
+    std::vector<char*> av;
+    for (std::string& a : args) av.push_back(&a[0]);
+    av.push_back(nullptr);
+    const int rc = RunGame(static_cast<int>(args.size()), av.data());
+    if (rc != 0) {
+        game::ShowLaunchError("Fallout Tactics CE stopped with an error.\n\n" +
+                              game::LogTail(setup.logPath, 12) +
+                              "\nThe whole log is in fotgame.log, next to the saves folder.");
+    }
+    return rc;
 }
