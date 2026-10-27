@@ -2297,8 +2297,9 @@ void CampaignFrame(int64_t deltaMs) {
     }
     // The pointer, last, over everything. The OS cursor is hidden for the whole
     // run (see SDL_ShowCursor), and these screens aren't drawn by `Ui::Draw`,
-    // which draws the mission's own cursor.
-    g.ui.DrawPointer(&c, g.mouseX, g.mouseY);
+    // which draws the mission's own cursor. Outside the window the OS draws
+    // its own, so ours goes rather than sitting at the edge.
+    if (g.mouseIn) g.ui.DrawPointer(&c, g.mouseX, g.mouseY);
 }
 
 void RunCamScript() {
@@ -2523,6 +2524,7 @@ void RunCamScript() {
                 // one moves it there too (and a capture shows it there).
                 g.mouseX = static_cast<int>(v[0]);
                 g.mouseY = static_cast<int>(v[1]);
+                g.mouseIn = true;
                 CampaignClick(static_cast<int32_t>(v[0]), static_cast<int32_t>(v[1]));
             }
         }
@@ -2662,6 +2664,11 @@ void Tick() {
                 if (g.uiOn && g.ui.Ready()) g.ui.MouseMove(ev.motion.x, ev.motion.y);
                 break;
             case SDL_MOUSEBUTTONUP: {
+                // A press or release happens where the pointer is, even with no
+                // motion before it (a touch, or a pen tap).
+                g.mouseX = ev.button.x;
+                g.mouseY = ev.button.y;
+                g.mouseIn = true;
                 const bool band = g.bandActive && ev.button.button == SDL_BUTTON_LEFT;
                 g.bandActive = false;
                 bool taken = false;
@@ -2709,6 +2716,9 @@ void Tick() {
                 // before the mission interface, because while one is up there
                 // is no mission being simulated (see the CampaignFrame guard
                 // below).
+                g.mouseX = ev.button.x;  // as on release: the press is where the pointer is
+                g.mouseY = ev.button.y;
+                g.mouseIn = true;
                 if (g.campaignMode && g.camScreen != CampaignScreen::None) {
                     if (ev.button.button == SDL_BUTTON_LEFT) {
                         CampaignClick(ev.button.x, ev.button.y);
