@@ -414,6 +414,11 @@ public:
     // over everything, because the original hides the OS cursor and draws its
     // own (`display.cursorMode` = software).
     void DrawCursor(Canvas* c);
+    // The plain arrow (`cursor_normal`) at (x, y), for the campaign's own
+    // screens -- the front end, the world map, the bunker, briefings, saving
+    // and loading -- which main.cpp draws without `Draw`.  The OS cursor is
+    // hidden for the whole run, so those screens need this one, drawn last.
+    void DrawPointer(Canvas* c, int32_t x, int32_t y) const;
     // How far from a screen edge the eight scroll arrows come up.  There is no
     // margin in any dump (the four flags at `WGameWorld+0x106..0x109` are set
     // by a function that is not in the decompilation), so this is a labelled
