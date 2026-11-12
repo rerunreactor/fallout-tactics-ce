@@ -904,7 +904,18 @@ void MissionScript::ExecuteAction(Scene& scene, ScriptObj& a) {
         return;
     }
     if (k == "Play Wav" || k == "Play Sound") {
-        Logf("play wav: %s", a.Str("Wav File").c_str());
+        // `ActionPlayWav` (`RegisterActionPlayWav@00682160`), the only sound
+        // action the original registers.  Every shipped record carries
+        // `Filename`, a path under core ("sound/Game/Alarm.wav"), and `Set
+        // Unit`, the tag of the object that sounds it -- an alarm box, a gate.
+        // RECONSTRUCTION: `ActionPlayWav::Vtable15@006823a0` isn't recovered,
+        // so it plays at the unit on the generic channel with that channel's
+        // distances, and flat when the tag names nothing.  Two shipped records
+        // name files no archive holds; Play fails quietly on those.
+        const std::string file = a.Str("Filename");
+        const std::string unit = a.Str("Set Unit");
+        Logf("play wav: %s on '%s'", file.c_str(), unit.c_str());
+        PlayWav(scene, EntityByTag(scene, unit), file);
         return;
     }
 
@@ -1096,6 +1107,24 @@ void MissionScript::PlaySpeechLine(Scene& scene, int32_t entity,
     r.why = "speech";
     const std::vector<LiveEntity>& es = scene.Entities();
     if (entity >= 0 && entity < static_cast<int32_t>(es.size())) {
+        r.positional = true;
+        r.x = es[static_cast<size_t>(entity)].wpos[0];
+        r.y = es[static_cast<size_t>(entity)].wpos[1];
+        r.z = es[static_cast<size_t>(entity)].wpos[2];
+    }
+    audio->Play(r);
+}
+
+void MissionScript::PlayWav(Scene& scene, int32_t entity, const std::string& file) {
+    Audio* audio = scene.GetAudio();
+    if (audio == nullptr || !audio->Enabled() || file.empty()) return;
+    SoundRequest r;
+    r.file = file;
+    r.channel = kChanDefault;
+    r.why = "script";
+    const std::vector<LiveEntity>& es = scene.Entities();
+    if (entity >= 0 && entity < static_cast<int32_t>(es.size())) {
+        r.entityId = entity;
         r.positional = true;
         r.x = es[static_cast<size_t>(entity)].wpos[0];
         r.y = es[static_cast<size_t>(entity)].wpos[1];

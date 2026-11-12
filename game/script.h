@@ -289,6 +289,8 @@ public:
     void PlaySpeechNode(Scene& scene, int32_t entity, const std::string& node);
     // MILESTONE 13: `locale/missions/<mission>/<line key>.mp3`.
     void PlaySpeechLine(Scene& scene, int32_t entity, const std::string& key);
+    // Play Wav: `file` at `entity`, or flat when `entity` is -1.
+    void PlayWav(Scene& scene, int32_t entity, const std::string& file);
 
     // --- what Load parsed -------------------------------------------------
     const std::vector<Trigger>& Triggers() const { return m_triggers; }
