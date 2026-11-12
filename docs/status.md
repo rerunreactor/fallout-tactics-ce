@@ -281,7 +281,6 @@ Each of these was checked against the current code.
 | **The unported trigger conditions and quantity kinds** listed under [Mission scripting gaps](#mission-scripting-gaps). | `MissionScript::EvaluateCondition`, `MissionScript::Quantity` | `EvaluateEntityQuantityCondition@004e0e20` and the condition classes | `--triggers` and `--script-log` on the tutorial maps. |
 | **Squad levelling** with the recovered experience ladder and level-up grant. | `HarvestRosterFromScene` in `game/main.cpp`; `LevelForExperience` in `game/combat.cpp` | `GetLevelForXPAmount@00607950`, `Attributes::CheckLevelUpAndGiveStatGainIfSo@00607b30` | Compare a squad member's sheet with the original after a mission. |
 | **Read the campaign file's variable table names first**, as saves are read. `bos.cam`'s table is empty, so only custom campaigns would notice. | `CampaignFile::Load` in `game/campaign.cpp` | `VarTable::SaveVarTableProperties@00500b50` | A campaign file with variables. |
-| **difftest tooling.** `compare.py` looks for the binary in `game/` and resolves `FOT_ASSETS` against two different working directories. | `difftest/compare.py` | none | Run it against a recorded session. |
 
 ### Bigger items
 
