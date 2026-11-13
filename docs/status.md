@@ -185,6 +185,10 @@ Differential-testing passes ran alongside milestones 22–25. Code comments tagg
   - Lock/Unlock Door.
 - **Timing.** Speech stays up for 4 s and world text for 5 s. Both are placeholders.
 - **Random ranges.** A random range in a condition uses its lower bound. Every shipped range has equal bounds, so this is exact on shipped data.
+- **Object script state.** Each object keeps its own on/off state, as the original does, and starts from its map record.
+  - Setting it opens or closes a door. For lights, alarms, traps and turrets it only records the state; their own effects aren't modelled.
+  - A power node starts on and stays on until a script sets it, because the port keeps no power.
+  - Using a switch or an alarm does nothing yet, so the triggers they drive don't fire.
 
 ### Interface
 
