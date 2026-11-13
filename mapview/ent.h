@@ -173,9 +173,8 @@ struct SpritePick {
     int32_t dirCount = 0;
 };
 
-// Entity::UpdateSprite -> SetAnimationType("default"); the direction comes from
-// `animationRotation` when the instance stored one and otherwise from the
-// "frame" property's orientation matrix.
+// Entity::UpdateSprite -> SetAnimationType("default"); the direction is
+// `animationRotation`, 0 when the instance stored none.
 SpritePick PickSprite(const Sprite& sprite, const EntityInstance& inst);
 
 // Normalises a stored sprite name to a lookup key: '\' to '/', and a ".spr"
