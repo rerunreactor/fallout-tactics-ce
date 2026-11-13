@@ -656,10 +656,17 @@ bool MissionScript::EvaluateCondition(Scene& scene, const ScriptObj& c) {
     }
 
     if (c.cls == "Object Script State") {
-        const int32_t e = EntityByTag(scene, c.Str("Unit"));
+        // `ConditionObjectScriptState::Evaluate @006922a0`: every entity
+        // carrying the tag is asked `IsInActiveState`, and any one in the
+        // wanted state passes.  A tag nothing carries fails.  `ScriptState`
+        // defaults to true (the constructor @00692120 sets it, and Serialize
+        // @00692470 writes it only when false).
+        const std::string unit = c.Str("Unit");
         const bool want = c.Bool("ScriptState", true);
-        auto it = m_objState.find(e);
-        return (it == m_objState.end() ? true : it->second) == want;
+        for (const LiveEntity& e : scene.Entities()) {
+            if (!unit.empty() && e.tag == unit && scene.IsInActiveState(e) == want) return true;
+        }
+        return false;
     }
 
     if (c.cls == "Timer") {
@@ -704,7 +711,7 @@ bool MissionScript::EvaluateCondition(Scene& scene, const ScriptObj& c) {
         return alive > 0;
     }
 
-    // Not ported: Object Script State, GUI Open, ObjDude Alive, Skill Use
+    // Not ported: GUI Open, ObjDude Alive, Skill Use
     // Occured, Right Click on Tab, Timer, Weapon Mode Equals, World Play Mode
     // Equals, Quantity - Player Kills, Multiplayer Map Restart.
     return false;
@@ -834,8 +841,12 @@ void MissionScript::ExecuteAction(Scene& scene, ScriptObj& a) {
         return;
     }
     if (k == "Set object script state") {
-        const int32_t e = EntityByTag(scene, a.Str("Set Unit"));
-        if (e >= 0) m_objState[e] = a.Bool("Object State", true);
+        const std::string unit = a.Str("Set Unit");
+        const bool on = a.Bool("Object State", true);
+        if (scene.ScriptSetActivationState(unit, on) == 0) {
+            // `ActionObjectScriptState::Vtable15 @00682fc0` reports the same.
+            Logf("set object script state: no unit '%s'", unit.c_str());
+        }
         return;
     }
     if (k == "Set Timer") {

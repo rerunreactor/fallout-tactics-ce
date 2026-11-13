@@ -209,6 +209,11 @@ struct LiveEntity {
     // The `.mis` "Tag Name" property, which is what every `<Trigger>` Unit
     // reference names ('Elder', 'Hawkeye', 'Leader', 'Captive-1' ...).
     std::string tag;
+    // The object's activation state: the field `IsInActiveState` (vtable
+    // +0x7d8) returns and `SetActivationState` (+0x7d4) sets, which is what
+    // the Object Script State condition and action read and write.  Doors
+    // answer from `doorOpen` instead; see Scene::IsInActiveState.
+    bool activeState = false;
     // MILESTONE 18.  The `.mis` / `.ent` **"Click Speech"** string property --
     // `Entity::GetClickSpeechIDString`, entity vtable slot 507 -- which names a
     // `<speech_node>`.  It is what `IsEntityValidTalkTarget @004a3070` tests
@@ -783,6 +788,12 @@ public:
     // `Entity::CanSeeEntity` is in no dump; this reuses milestone 8's line-of-
     // fire walk and the same 40-world-unit engagement radius the AI uses.
     bool LineOfSight(int32_t a, int32_t b) const;
+    // `Entity::IsInActiveState` (vtable +0x7d8), for the classes that
+    // override it; every other class answers false.
+    bool IsInActiveState(const LiveEntity& e) const;
+    // ActionObjectScriptState: `SetActivationState` (vtable +0x7d4) on every
+    // entity carrying `tag`.  Returns how many carry it.
+    int32_t ScriptSetActivationState(const std::string& tag, bool on);
     // ActionKillEntity.
     bool ScriptKill(int32_t index);
     // ActionChangePlayer.

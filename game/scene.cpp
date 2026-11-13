@@ -41,6 +41,40 @@ bool IsCollectableClass(const std::string& cls) {
     return false;
 }
 
+// The classes whose `IsInActiveState` (vtable +0x7d8) returns a field of
+// their own, the serialized property that field is, and the class default.
+// `EntityStreamWriteBoolean @005f4760` writes a boolean only when it differs
+// from that default and reads a missing one back as it, so a map record
+// without the property holds the default -- not the `.ent`'s value: the
+// mission 25 terminals' `.ent` says `On = true`, but their records omit it,
+// so they start off.  Every class not listed answers false
+// (`Entity::IsInActiveState @0050fda0`).
+struct ActivationProperty {
+    const char* className;
+    const char* property;
+    bool initial;
+};
+constexpr ActivationProperty kActivationProperties[] = {
+    // EntityStreamStruct::Serialize @005bc660; ScienceSwitch serializes
+    // through Switch's.
+    {"Switch", "On", false},
+    {"ScienceSwitch", "On", false},
+    {"Alarm", "Activated", false},          // EntityStreamStruct::Serialize @005aaa90
+    {"Trap", "Activated", false},           // EntityStreamStruct::Serialize @005d36a0
+    {"Deathtrap", "scriptState", false},    // EntityStreamStruct::Serialize @00599ef0
+    {"Light", "On/Off switch", true},       // EntityStreamStruct::Serialize @0059c1c0
+    {"StateScenary", "On:", true},          // EntityStreamStruct::Serialize @005a6b80
+    {"StateBreakable", "On:", true},        // EntityStreamStruct::Serialize @005a44f0
+    {"Actor", "Turret Armed", false},       // Actor::ClassType::Serialize @00570cb0
+};
+
+const ActivationProperty* FindActivationProperty(const std::string& cls) {
+    for (const ActivationProperty& p : kActivationProperties) {
+        if (cls == p.className) return &p;
+    }
+    return nullptr;
+}
+
 // A 256-entry per-channel table for the uniform case `out = round(c * A)`.
 struct ChannelLut {
     uint8_t t[3][256];
@@ -559,6 +593,18 @@ void Scene::ResolveEntities() {
         e.entPath = inst.entPath;
         e.spritePath = inst.spritePath;
         e.tag = inst.tagName;
+        // The instance record alone, falling back to the class default; see
+        // kActivationProperties.
+        if (const ActivationProperty* ap = FindActivationProperty(inst.className)) {
+            e.activeState = ap->initial;
+            inst.esh.GetBool(ap->property, &e.activeState);
+        } else if (inst.className == "PowerNode") {
+            // RECONSTRUCTION: `PowerNode::IsInActiveState @005b8180` is "two
+            // floats are equal", and `InitDefaultEntityFields @005b6950` sets
+            // both from one value.  The port keeps no power, so a node starts
+            // and stays active until a script sets it.
+            e.activeState = true;
+        }
         // MILESTONE 18: the two speech-node names an entity carries in the
         // `.mis` itself.  Brahmin Wood writes them on every villager, captive,
         // the Elder and Hawkeye; `IsEntityValidTalkTarget @004a3070` reads the
@@ -1071,9 +1117,14 @@ void Scene::FinishedAnimationSequence(LiveEntity& e) {
     // "Opened", and -- if the actor it recorded is still valid -- opens the
     // loot window for it (`WorldGlobal->gamemain_ptr_maybe` vtable +0x20).
     // "Closing" ends the same way into "Closed".
+    // The same two ends set and clear the activation flag (Container+0x1b6),
+    // which `Container::SomethingNewSpawnRelated @005ab9f0` clears at spawn: a
+    // container counts as active only once it has been opened, so one placed
+    // open ("Is Always Open") never does.
     if (e.isContainer) {
         if (e.action == "Opening") {
             e.isOpen = true;
+            e.activeState = true;
             e.action = "Opened";
             SetAnimationType(e, "Opened");
             if (e.openWhenAnimDone && e.openedBy >= 0) {
@@ -1085,6 +1136,7 @@ void Scene::FinishedAnimationSequence(LiveEntity& e) {
         }
         if (e.action == "Closing") {
             e.isOpen = false;
+            e.activeState = false;
             e.action = "Closed";
             SetAnimationType(e, "Closed");
             return;
@@ -3173,6 +3225,50 @@ bool Scene::LineOfSight(int32_t ai, int32_t bi) const {
     bool blocked = false;
     CountLineBlockers(a, b, &blocked);
     return !blocked;
+}
+
+bool Scene::IsInActiveState(const LiveEntity& e) const {
+    // A door's flag is set by `Door::DoorOpenStuff` and cleared by
+    // `Door::CloseDoorStuff` (Door+0x1c7): it is "open".  A container's is set
+    // in FinishedAnimationSequence.
+    if (e.isDoor) return e.doorOpen;
+    if (e.className == "Container" || e.className == "PowerNode" ||
+        FindActivationProperty(e.className) != nullptr) {
+        return e.activeState;
+    }
+    return false;
+}
+
+int32_t Scene::ScriptSetActivationState(const std::string& tag, bool on) {
+    // `ActionObjectScriptState::Vtable15 @00682fc0` collects every entity
+    // carrying the tag and calls SetActivationState on each.
+    int32_t count = 0;
+    for (LiveEntity& e : m_entities) {
+        if (tag.empty() || e.tag != tag) continue;
+        ++count;
+        if (e.isDoor) {
+            // `Door::SetActivationState @005b2690`: open or close.  doorOpen
+            // follows when the animation lands.
+            if (on != e.doorOpen) SetDoorState(e, on ? "Opening" : "Closing");
+        } else if (e.className == "Actor") {
+            // `Actor::SetActivationState @0057d5a0` acts only on gun turrets
+            // (vtable +0x128, IsGunTurret).  RECONSTRUCTION: a gun turret is
+            // read as its "Race Type", which every shipped turret sets to
+            // GunTurret01.
+            if (e.raceType.rfind("GunTurret", 0) == 0) e.activeState = on;
+        } else if (e.className == "PowerNode" ||
+                   (FindActivationProperty(e.className) != nullptr && e.className != "Switch")) {
+            // Their setters store the flag; what else each does (a light's
+            // level, an alarm's sound, a trap's arming) isn't modelled.
+            // Switch keeps `Entity::SetActivationState @0050fd90`, which does
+            // nothing: only using a switch changes it.
+            e.activeState = on;
+        }
+        // Containers (`Container::SetActivationState @005ad920`) and every
+        // other class: no shipped script sets them, and the base class's
+        // setter does nothing.
+    }
+    return count;
 }
 
 bool Scene::ScriptKill(int32_t index) {

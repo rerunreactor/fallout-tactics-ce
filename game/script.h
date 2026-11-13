@@ -418,11 +418,6 @@ private:
     // clicked, and the pool it says at random.
     std::unordered_map<int32_t, std::string> m_clickSpeech, m_randomSpeech;
     std::vector<std::string> m_pendingSpeechEvents;
-    // `Set object script state` / `Object Script State`: a per-entity boolean
-    // the mission scripts use as a general-purpose latch.  The serializer only
-    // writes the property when it differs from its compile-time default, and
-    // every shipped record writes `false`, so the default is true.
-    std::unordered_map<int32_t, bool> m_objState;
     // `Set Timer` / `Stop Timer` / the `Timer` condition.  The delay is a
     // QualifiedNumber the writer leaves unnamed;
     // `ActionSetTimer::GetRandomTimerDelay @00679xxx` reads its two int16s and
