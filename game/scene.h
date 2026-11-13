@@ -214,6 +214,13 @@ struct LiveEntity {
     // the Object Script State condition and action read and write.  Doors
     // answer from `doorOpen` instead; see Scene::IsInActiveState.
     bool activeState = false;
+    // A Switch's "Key TagName" (Switch+0x1a7), the item tag
+    // `Switch::MaybeUseEntity` wants carried, and its "Sound Type"
+    // (Entity+0x156), which `Switch::SoundRelated1` builds its sound from.
+    std::string keyTag, useSound;
+    // The "Broken" property, `Entity::IsBroken` (Entity+0x18a).  A hostile
+    // actor who uses an alarm breaks it, and a broken alarm can't go off.
+    bool broken = false;
     // MILESTONE 18.  The `.mis` / `.ent` **"Click Speech"** string property --
     // `Entity::GetClickSpeechIDString`, entity vtable slot 507 -- which names a
     // `<speech_node>`.  It is what `IsEntityValidTalkTarget @004a3070` tests
@@ -709,10 +716,18 @@ public:
     bool CanReachToUse(const LiveEntity& a, const LiveEntity& t) const;
     bool CanReachToInteract(const LiveEntity& a, const LiveEntity& t) const;
     // "Use" the entity under the cursor.  Opens a container, opens a corpse,
-    // picks a ground item up, opens or closes a door.  Returns false and fills
-    // `whyNot` with the `reason.txt` message the original would have shown.
-    // `openedLoot` is set when the call put a loot window up.
+    // picks a ground item up, opens or closes a door, throws a switch, sets
+    // off an alarm.  Returns false and fills `whyNot` with the `reason.txt`
+    // message the original would have shown.  `openedLoot` is set when the
+    // call put a loot window up.
     bool UseEntity(int32_t actor, int32_t target, std::string* whyNot, bool* openedLoot);
+    // The target halves of UseEntity for the two usable classes ported:
+    // `Switch::MaybeUseEntity @005bbed0` and `Alarm::MaybeUseEntity @005aa560`.
+    bool UseSwitch(int32_t actor, int32_t target, std::string* whyNot);
+    bool UseAlarm(int32_t actor, int32_t target, std::string* whyNot);
+    // `Actor::ContainsItemWithTagName` or `PlayerEquippedItemWithTagName`:
+    // whether the actor has the key a locked container or a switch asks for.
+    bool HasItemTagged(const LiveEntity& a, const std::string& tag) const;
     // The queued activate, run once a tick: an actor that was out of reach
     // walked to the object and uses it on arrival.
     void StepPendingUse();

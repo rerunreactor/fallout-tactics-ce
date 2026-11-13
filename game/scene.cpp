@@ -605,6 +605,18 @@ void Scene::ResolveEntities() {
             // and stays active until a script sets it.
             e.activeState = true;
         }
+        // The map instance's value, else the `.ent`'s.
+        auto instOrProto = [&](const char* name, std::string* out) {
+            if (!inst.esh.GetString(name, out) && proto != nullptr) {
+                proto->block.esh.GetString(name, out);
+            }
+        };
+        if (inst.className == "Switch") {
+            // EntityStreamStruct::Serialize @005bc660.
+            instOrProto("Key TagName", &e.keyTag);
+            instOrProto("Sound Type", &e.useSound);
+        }
+        inst.esh.GetBool("Broken", &e.broken);
         // MILESTONE 18: the two speech-node names an entity carries in the
         // `.mis` itself.  Brahmin Wood writes them on every villager, captive,
         // the Elder and Hawkeye; `IsEntityValidTalkTarget @004a3070` reads the
@@ -1111,6 +1123,16 @@ void Scene::FinishedAnimationSequence(LiveEntity& e) {
             SetDoorState(e, "Closed");
             return;
         }
+    }
+    // `Switch::FinishedAnimationSequenceMaybe @005bca80`: Opening comes to rest
+    // as Opened and Closing as Closed, and any other sequence holds.  The
+    // state itself changed when the switch was thrown.
+    if (e.className == "Switch") {
+        if (e.action == "Opening" || e.action == "Closing") {
+            e.action = e.action == "Opening" ? "Opened" : "Closed";
+            SetAnimationType(e, e.action);
+        }
+        return;
     }
     // MILESTONE 17.  `Container::FinishedAnimationSequenceMaybe @005ac780`:
     // when the "Opening" sequence ends the container becomes open, switches to
@@ -3256,10 +3278,15 @@ int32_t Scene::ScriptSetActivationState(const std::string& tag, bool on) {
             // read as its "Race Type", which every shipped turret sets to
             // GunTurret01.
             if (e.raceType.rfind("GunTurret", 0) == 0) e.activeState = on;
+        } else if (e.className == "Alarm") {
+            // `Alarm::SetActivationState @005aa9c0` leaves a broken alarm as
+            // it is.  Going off, it also alerts its player's controller (see
+            // UseAlarm), which isn't modelled.
+            if (!e.broken) e.activeState = on;
         } else if (e.className == "PowerNode" ||
                    (FindActivationProperty(e.className) != nullptr && e.className != "Switch")) {
             // Their setters store the flag; what else each does (a light's
-            // level, an alarm's sound, a trap's arming) isn't modelled.
+            // level, a trap's arming) isn't modelled.
             // Switch keeps `Entity::SetActivationState @0050fd90`, which does
             // nothing: only using a switch changes it.
             e.activeState = on;
@@ -7141,7 +7168,10 @@ bool Scene::UseEntity(int32_t actor, int32_t target, std::string* whyNot, bool* 
     const bool corpse = t.isCombatant && t.dead;
     const bool container = t.isContainer;
     const bool ground = t.isCollectable;
-    if (!corpse && !container && !ground && !t.isDoor) {
+    // `Usable::CanBeActivated` is true.  Of the Usable classes, Switch and
+    // Alarm are ported.
+    const bool usable = t.className == "Switch" || t.className == "Alarm";
+    if (!corpse && !container && !ground && !t.isDoor && !usable) {
         // `Entity::CanBeActivated` false: `use_code |= 0x40`.
         return fail("That does nothing.");
     }
@@ -7174,6 +7204,14 @@ bool Scene::UseEntity(int32_t actor, int32_t target, std::string* whyNot, bool* 
     if (m_combatMode != 0) {
         if (ActiveTurnEntity() != actor) return fail("not this entity's turn");
         if (a.ap < static_cast<float>(cost)) return fail("Not enough action points.");
+    }
+
+    if (usable) {
+        // `Actor::TryConsumeActionPointsForStance` runs before the target's
+        // MaybeUseEntity, so a use the target refuses still costs the AP.
+        if (m_combatMode != 0) a.ap -= static_cast<float>(cost);
+        return t.className == "Switch" ? UseSwitch(actor, target, whyNot)
+                                       : UseAlarm(actor, target, whyNot);
     }
 
     if (t.isDoor && !container) {
@@ -7232,14 +7270,7 @@ bool Scene::UseEntity(int32_t actor, int32_t target, std::string* whyNot, bool* 
             // with no tag has no key and can only be picked, which is
             // `Container::ApplySkillToTargetEntity @005ad3f0` and the `.ent`'s
             // own `Chance to Unlock` -- the skill path is not implemented here.
-            bool haveKey = false;
-            if (!t.tag.empty()) {
-                for (const LiveEntity::InvItem& it : a.inventory) {
-                    haveKey |= IEq(it.tagName, t.tag.c_str());
-                }
-                haveKey = haveKey || (a.weapon.valid && IEq(a.weapon.displayName, t.tag.c_str()));
-            }
-            if (!haveKey) {
+            if (!HasItemTagged(a, t.tag)) {
                 return fail(t.tag.empty() ? "The container is locked. (no key exists; picking "
                                             "the lock is not implemented)"
                                           : "The container is locked.");
@@ -7288,6 +7319,114 @@ bool Scene::UseEntity(int32_t actor, int32_t target, std::string* whyNot, bool* 
     m_lootTarget = target;
     m_lootActor = actor;
     if (openedLoot != nullptr) *openedLoot = true;
+    return true;
+}
+
+bool Scene::HasItemTagged(const LiveEntity& a, const std::string& tag) const {
+    if (tag.empty()) return false;
+    for (const LiveEntity::InvItem& it : a.inventory) {
+        if (IEq(it.tagName, tag.c_str())) return true;
+    }
+    return a.weapon.valid && IEq(a.weapon.displayName, tag.c_str());
+}
+
+// `Switch::MaybeUseEntity @005bbed0`.  The reach test it repeats is
+// UseEntity's.
+bool Scene::UseSwitch(int32_t actor, int32_t target, std::string* whyNot) {
+    auto fail = [&](const char* w) {
+        if (whyNot != nullptr) *whyNot = w;
+        return false;
+    };
+    LiveEntity& t = m_entities[static_cast<size_t>(target)];
+    // A switch works what shares its tag, so one with no tag does nothing:
+    // `use_code |= 0x40`.
+    if (t.tag.empty()) return fail("That does nothing.");
+    // `Key TagName`: the actor must carry or have equipped an item with that
+    // tag (`ContainsItemWithTagName` / `PlayerEquippedItemWithTagName`), or
+    // the answer is `log_needKey`.
+    if (!t.keyTag.empty() && !HasItemTagged(m_entities[static_cast<size_t>(actor)], t.keyTag)) {
+        return fail("This requires a key to operate.");
+    }
+    // Every other entity carrying the tag
+    // (`CollectAndDeregisterStringKeyedRangeEntries` on the world's tag
+    // table), apart from keys, is used by the actor through its own
+    // MaybeUseEntity, with the switch passed as the third argument.  Each
+    // answer is discarded.
+    for (size_t i = 0; i < m_entities.size(); ++i) {
+        LiveEntity& o = m_entities[i];
+        if (static_cast<int32_t>(i) == target || o.tag != t.tag) continue;
+        if (o.isDoor) {
+            // `Door::MaybeUseEntity @005af330`: through a switch, reach is
+            // not tested and a locked door unlocks; then it opens or closes.
+            // The port has no door locks.  RECONSTRUCTION: its doors also
+            // close once nobody is near (DoorThink), so one the switch opens
+            // gets the same hold an approach gives it.
+            if (!o.doorOpen) o.doorHoldUntilMs = m_ticks * kTickMs + kDoorHoldMs;
+            SetDoorState(o, o.doorOpen ? "Closing" : "Opening");
+        } else if (o.className == "Actor") {
+            // `Actor::MaybeUseEntity @0057d5e0`: a gun turret used through a
+            // switch (`IsSwitch`) is armed or disarmed.  Anything else
+            // ignores it.  Gun turrets as in ScriptSetActivationState.
+            if (o.raceType.rfind("GunTurret", 0) == 0) o.activeState = !o.activeState;
+        } else if (o.className == "Alarm") {
+            UseAlarm(actor, static_cast<int32_t>(i), nullptr);
+        }
+        // Lights keep `Entity::MaybeUseEntity`, which does nothing, and no
+        // shipped switch shares its tag with any other class.
+    }
+    // A "Brain Extractor" switch also records the actor in the world
+    // (World+0x513).  Nothing the port runs reads that, so it isn't kept.
+
+    // `Switch::SoundRelated1 @005bcca0`: "sound/game/" + Sound Type + Open
+    // when turning on, Close when turning off -- Granted and Denied for
+    // "terminalAccess" -- and nothing for an empty type or "none".  It
+    // plays on channel 6.
+    const bool wasOn = t.activeState;
+    if (!t.useSound.empty() && !IEq(t.useSound, "none")) {
+        const bool terminal = IEq(t.useSound, "terminalAccess");
+        const char* suffix = wasOn ? (terminal ? "Denied" : "Close")
+                                   : (terminal ? "Granted" : "Open");
+        PlaySoundStem(t, "sound/game/" + t.useSound + suffix, kChanSpeech, "switch");
+    }
+    // The lever: Opening when it goes on, Closing when it goes off.  The
+    // state flips now; FinishedAnimationSequence brings the lever to rest.
+    t.action = wasOn ? "Closing" : "Opening";
+    if (SetAnimationType(t, t.action)) {
+        t.nextThinkMs = m_ticks * kTickMs;
+    } else {
+        t.action = wasOn ? "Closed" : "Opened";
+        SetAnimationType(t, t.action);
+    }
+    t.activeState = !wasOn;
+    Logf("%s turns %s %s.", m_entities[static_cast<size_t>(actor)].ShownName().c_str(),
+         t.label.c_str(), t.activeState ? "on" : "off");
+    return true;
+}
+
+// `Alarm::MaybeUseEntity @005aa560`.
+bool Scene::UseAlarm(int32_t actor, int32_t target, std::string* whyNot) {
+    auto fail = [&](const char* w) {
+        if (whyNot != nullptr) *whyNot = w;
+        return false;
+    };
+    const LiveEntity& a = m_entities[static_cast<size_t>(actor)];
+    LiveEntity& t = m_entities[static_cast<size_t>(target)];
+    // Already going off: `use_code |= 0x40`.
+    if (t.activeState) return fail("That does nothing.");
+    if (t.broken) return fail("That item is broken.");    // log_brokenItem
+    // `GetFactionRelationValue(alarm's player, user's player)`: someone
+    // hostile to the alarm's side breaks it (`log_alarmBroke`), and the use
+    // still succeeds.
+    if (Hostile(t, a)) {
+        t.broken = true;
+        Logf("%s broke the alarm.", a.ShownName().c_str());
+        return true;
+    }
+    // It goes off.  The original then hands the alarm to its player's
+    // controller (Player+0x131, vtable +0x234), which rouses that side; the
+    // port doesn't model raising alarms.
+    t.activeState = true;
+    Logf("%s sets off %s.", a.ShownName().c_str(), t.label.c_str());
     return true;
 }
 
