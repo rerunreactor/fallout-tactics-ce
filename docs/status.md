@@ -185,9 +185,11 @@ Differential-testing passes ran alongside milestones 22–25. Code comments tagg
 - **Timing.** Speech stays up for 4 s and world text for 5 s. Both are placeholders.
 - **Random ranges.** A random range in a condition uses its lower bound. Every shipped range has equal bounds, so this is exact on shipped data.
 - **Object script state.** Each object keeps its own on/off state, as the original does, and starts from its map record.
-  - Setting it opens or closes a door. For lights, alarms, traps and turrets it only records the state; their own effects aren't modelled.
+  - Setting it opens or closes a door. For lights, alarms, traps and turrets it only records the state; their own effects aren't modelled. A broken alarm ignores it.
   - A power node starts on and stays on until a script sets it, because the port keeps no power.
-  - Using a switch or an alarm does nothing yet, so the triggers they drive don't fire.
+  - Using a switch turns it on or off, and also works the doors and gun turrets that share its tag. A door opened this way closes again once nobody is near, like every door here.
+  - Using an alarm sets it off. Someone hostile to the alarm's side breaks it instead, and a broken alarm can't go off, even when a script sets it. What an alarm going off does to its side isn't modelled.
+  - Using a science console (`ScienceSwitch`) does nothing yet. The Science skill succeeds on one but doesn't change its state.
 
 ### Interface
 

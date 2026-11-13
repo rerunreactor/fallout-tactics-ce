@@ -573,15 +573,16 @@ bool WorldClick(int32_t x, int32_t y, bool right, bool shift, bool ctrl) {
 
     // MILESTONE 17.  `locale/gui/help.txt`, the game's own reference:
     // "ACTIONS  Left Click on Object: Use".  The object is a container, a
-    // corpse, an item on the ground or a door, and the handler is
-    // `HandleActivateOrLootCommand @00549120` (`Scene::UseEntity`).  The actor
-    // is the selected squad member; when it is out of reach the original walks
-    // to it first (`use_code |= 0x100` then `vtable+0x368`), which is a move
-    // order to the object's cell here.
+    // corpse, an item on the ground, a door, a switch or an alarm, and the
+    // handler is `HandleActivateOrLootCommand @00549120` (`Scene::UseEntity`).
+    // The actor is the selected squad member; when it is out of reach the
+    // original walks to it first (`use_code |= 0x100` then `vtable+0x368`),
+    // which is a move order to the object's cell here.
     if (hit >= 0) {
         const LiveEntity& obj = ents[static_cast<size_t>(hit)];
         const bool usable = obj.isContainer || obj.isCollectable || obj.isDoor ||
-                            (obj.isCombatant && obj.dead);
+                            (obj.isCombatant && obj.dead) || obj.className == "Switch" ||
+                            obj.className == "Alarm";
         if (usable) {
             int32_t actor = g.scenep->Selected();
             if (actor < 0 && !g.scenep->Selection().empty()) actor = g.scenep->Selection().front();
