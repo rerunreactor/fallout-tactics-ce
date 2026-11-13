@@ -167,7 +167,7 @@ Some values need explaining:
 | Option | Meaning |
 |---|---|
 | `--run-mode 0\|1\|2` | Always walk, smart run, always run. Default: `bos.cfg`. |
-| `--difficulty <d>` | Combat difficulty: `0`–`4`, or `easy`, `normal`, `hard` for 0–2. Any other number is used as the multiplier itself. Default: `normal`. `bos.cfg`'s difficulty isn't read. |
+| `--difficulty <d>` | Combat difficulty: `0`–`4`, or `easy`, `normal`, `hard` for 0–2. Any other number is used as the multiplier itself. Default: `bos.cfg`'s `{game.difficulty}`. |
 | `--seed <S>` | Seed of the combat random number generator. Default: 1. |
 | `--no-ai` | Enemies don't act. |
 | `--no-script` | Don't run the mission's triggers. |
