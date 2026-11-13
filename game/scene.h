@@ -743,6 +743,10 @@ public:
     // Which entity, if any, has a loot window open, and for whom.
     int32_t LootTarget() const { return m_lootTarget; }
     int32_t LootActor() const { return m_lootActor; }
+    // The game window that is up, by the names the `Gui Open` condition uses
+    // ("None", "Inv", "Char", "Loot", ...); main.cpp reports it every frame.
+    void SetOpenGui(const std::string& name) { m_openGui = name; }
+    const std::string& OpenGui() const { return m_openGui; }
     void CloseLoot();
     // Move item `index` of `from`'s inventory into `to`'s, `count` of them
     // (0 = the whole stack).  `Inventory::AddToInventory @005b4030` merges into
@@ -1161,6 +1165,7 @@ private:
     void EquipUnarmed(LiveEntity& e, const std::string& race);
 
     int32_t m_lootTarget = -1;
+    std::string m_openGui = "None";
     int32_t m_lootActor = -1;
 
     World m_world;

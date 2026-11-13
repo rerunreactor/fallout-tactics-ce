@@ -285,6 +285,13 @@ public:
 
     // Events the rest of the game raises into the script layer.
     void RaiseSpeechEvent(const std::string& event);
+    // A skill used: the trigger manager's skill event (World+0x30d, `@0067a6c0`,
+    // raised by `Actor::PerformSkillUseCheck`), which the "Skill Use Occured"
+    // triggers (mask 2) are evaluated against once.
+    void RaiseSkillEvent(const std::string& skill, int32_t user, int32_t target);
+    // A kill: the killer's player record counts it against the victim's player
+    // (`Player+0x117`, `IncrementKillCountForType @004e1e30`).
+    void CountPlayerKill(int32_t killerPlayer, int32_t victimPlayer);
     // "Speech Occured" triggers fire on the event, not on the timer.
     void PlaySpeechNode(Scene& scene, int32_t entity, const std::string& node);
     // MILESTONE 13: `locale/missions/<mission>/<line key>.mp3`.
@@ -420,6 +427,13 @@ private:
     // clicked, and the pool it says at random.
     std::unordered_map<int32_t, std::string> m_clickSpeech, m_randomSpeech;
     std::vector<std::string> m_pendingSpeechEvents;
+    struct SkillEvent {
+        std::string skill;
+        int32_t user = -1, target = -1;
+    };
+    std::vector<SkillEvent> m_pendingSkillEvents;
+    const SkillEvent* m_skillEvent = nullptr;   // the one being evaluated
+    std::map<std::pair<int32_t, int32_t>, int32_t> m_playerKills;
     // `Set Timer` / `Stop Timer` / the `Timer` condition.  The delay is a
     // QualifiedNumber the writer leaves unnamed;
     // `ActionSetTimer::GetRandomTimerDelay @00679xxx` reads its two int16s and

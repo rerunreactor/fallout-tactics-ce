@@ -170,10 +170,7 @@ Differential-testing passes ran alongside milestones 22–25. Code comments tagg
 
 ### Mission scripting gaps
 
-- **Trigger conditions.** These always return false:
-  - GUI Open, ObjDude Alive, Skill Use Occured, Right Click on Tab;
-  - Weapon Mode Equals, World Play Mode Equals;
-  - Quantity - Player Kills, Multiplayer Map Restart.
+- **Trigger conditions.** Right Click on Tab, Weapon Mode Equals, World Play Mode Equals and Multiplayer Map Restart always return false. None of the shipped missions uses them. Gui Open's "Main" is our in-mission menu, a guess.
 - **Quantity kinds.** These count as 0:
   - Skill, Trait, OptionalTrait, ItemsTagged, ItemsTaggedEquipped;
   - Reputation, Moving, Running, Sneaking, IsAlert, Unconscious.
@@ -283,7 +280,6 @@ Each of these was checked against the current code.
 | **The other half of the difficulty term**, and reading `game.difficulty` from `bos.cfg`. | `Scene::ComputeHitChance`; the `bos.cfg` reader in `game/main.cpp` | `GetDifficultyModifierForAttackerTarget@0061b990` | difftest: the `DIFF` record, and HIT records where the player is the target. |
 | **Critical hits on burst shots.** | `Scene::ResolveBurst` | `RollCriticalHitChance@0060fdf0`, `ResolveBurstAttackTargets@00614ac0` | difftest `CRIT` and `ATTACK` records for burst fire. |
 | **A turn-based key.** Bind Return as the game does, and support squad mode as well as individual mode. | the `Tick` key handling in `game/main.cpp`; `Scene::SetTurnBased` | `World::StartCombat@00506b40` | Play a fight both ways. |
-| **The unported trigger conditions and quantity kinds** listed under [Mission scripting gaps](#mission-scripting-gaps). | `MissionScript::EvaluateCondition`, `MissionScript::Quantity` | `EvaluateEntityQuantityCondition@004e0e20` and the condition classes | `--triggers` and `--script-log` on the tutorial maps. |
 | **Squad levelling** with the recovered experience ladder and level-up grant. | `HarvestRosterFromScene` in `game/main.cpp`; `LevelForExperience` in `game/combat.cpp` | `GetLevelForXPAmount@00607950`, `Attributes::CheckLevelUpAndGiveStatGainIfSo@00607b30` | Compare a squad member's sheet with the original after a mission. |
 
 ### Bigger items
