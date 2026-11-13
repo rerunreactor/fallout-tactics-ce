@@ -120,6 +120,9 @@ struct App {
     // `{game.runMode} = {0}`.
     int32_t runMode = 0;
     int32_t formationMode = 0;         // `game.formationMode`, DAT_008bda1c
+    // The `{game.difficulty}` table value every scene's to-hit term uses,
+    // the campaign's missions included; see `Scene::m_difficultyMultiplier`.
+    float difficulty = 1.0f;
     std::vector<std::string> orders;   // "N:move:x,z" / "N:select:i" / "N:posture:P"
 
     // --- milestone 16: the band box ---------------------------------------
@@ -1607,6 +1610,7 @@ bool CampaignEnterMission(const std::string& misPath, int32_t coreIndex,
     PaintLoadingScreen(misPath, 0.1f);
     std::unique_ptr<Scene> next(new Scene());
     next->SetAudio(g.audio.Enabled() ? &g.audio : nullptr);
+    next->SetDifficultyMultiplier(g.difficulty);
     std::string err;
     if (!next->Load(full, opt, &err)) {
         std::fprintf(stderr, "enter mission %s: %s\n", full.c_str(), err.c_str());
@@ -3171,7 +3175,7 @@ void Usage() {
                  "\n  -- milestone 11 --\n"
                  "  --ai-dump                              dump the parsed AI layer and exit\n"
                  "  --difficulty 0..4|easy|normal|hard     `{game.difficulty}` from bos.cfg\n"
-                 "                                         (0 easy .. 4, 1 is the default)\n"
+                 "                                         (0 easy .. 4); default: bos.cfg's\n"
                  "  --weapon-dump [substr]                 every weapon .ent: Display Name,\n"
                  "                                         damage band, ammo and modes\n"
                  "  --ent-props <path>                     every property of one .ent\n"                 "  --entities [--stats]                   dump every combatant as an ENT record\n"
@@ -3292,11 +3296,10 @@ static int RunGame(int argc, char** argv) {
     // misspelling in the shipped locale.  The `.ent`'s own `Display Name` IS
     // that locale key, so dumping it here makes the map exact instead of
     // heuristic, and carries the damage band and every mode alongside.
-    // `GetDifficultyModifierForAttackerTarget`'s multiplier: easy 1.05 (+2 to
-    // every shot the player's squad takes), normal 1.0, hard 0.95 (-2).  The
-    // session logs do not record which one was set, so it is a flag and the
-    // residual in `difftest/compare.py` is what estimates it.
-    std::string difficulty = "normal";
+    // `{game.difficulty}`, the index `GetDifficultyModifierForAttackerTarget`
+    // switches on.  Empty means "take bos.cfg's", which is 1 (Normal) in the
+    // shipped file.
+    std::string difficulty;
     std::string weaponDump;
     bool weaponDumpAll = false;
     std::vector<std::string> entProps;
@@ -3803,6 +3806,7 @@ static int RunGame(int argc, char** argv) {
                 // flag and `--run-mode 1|2` did nothing against a retail tree.
                 if (key == "game.runMode" && !runModeFromFlag) g.runMode = n;
                 else if (key == "game.formationMode" && !formationFromFlag) g.formationMode = n;
+                else if (key == "game.difficulty" && difficulty.empty()) difficulty = std::to_string(n);
             }
         }
         if (g.uiOn) g.ui.SetFormationMode(g.formationMode);
@@ -3914,27 +3918,30 @@ static int RunGame(int argc, char** argv) {
         // MILESTONE 25.  `GetDifficultyModifierForAttackerTarget @0061b990`,
         // out of the binary at last.  It switches on
         // `WorldGlobal->unknown4 + 0x24` -- `{game.difficulty}` in `bos.cfg`,
-        // 1 in the shipped file -- through a five-entry table, and then:
-        // if the ATTACKER is a player character it returns `1 / m`, if the
-        // TARGET is one it returns `m`, and otherwise 1.0.  (Its very first
-        // line returns 1.0 outright when `WorldGlobal->flag_for_time` is set.)
-        // `--difficulty` therefore takes the setting's own index; `easy`,
-        // `normal` and `hard` are aliases for 0, 1 and 2, and a bare number is
-        // still taken as the multiplier itself for experiments.
+        // 1 in the shipped file -- through a five-entry table, and then
+        // returns `1 / m` for a human player's shot at an AI player's entity,
+        // `m` for an AI's shot at the human's, and otherwise 1.0 (see
+        // `Scene::ComputeHitChance`).  (Its very first line returns 1.0
+        // outright when `WorldGlobal->flag_for_time` is set.)
+        // `--difficulty` therefore takes the setting's own index, and wins
+        // over bos.cfg's; `easy`, `normal` and `hard` are aliases for 0, 1 and
+        // 2, and a bare number is taken as the table value itself for
+        // experiments.  The original's out-of-range index falls to 1.0.
         static const float kDifficultyTable[5] = {0.7f, 1.0f, 1.3f, 2.0f, 5.0f};
         float dm = 1.0f;
         int idx = -1;
-        if (difficulty == "easy") idx = 0;
-        else if (difficulty == "normal") idx = 1;
+        if (difficulty.empty() || difficulty == "normal") idx = 1;
+        else if (difficulty == "easy") idx = 0;
         else if (difficulty == "hard") idx = 2;
         else if (difficulty.size() == 1 && difficulty[0] >= '0' && difficulty[0] <= '4')
             idx = difficulty[0] - '0';
         if (idx >= 0) {
-            dm = 1.0f / kDifficultyTable[idx];
+            dm = kDifficultyTable[idx];
         } else {
             dm = static_cast<float>(std::atof(difficulty.c_str()));
         }
         if (dm <= 0.0f) dm = 1.0f;
+        g.difficulty = dm;
         g.scenep->SetDifficultyMultiplier(dm);
     }
     if (!hitCalcs.empty()) {

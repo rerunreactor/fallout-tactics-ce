@@ -608,8 +608,9 @@ def main():
     ap.add_argument("--difficulty", default="auto",
                     help="0..4 (the bos.cfg {game.difficulty} index) | easy | "
                          "normal | hard | <multiplier>: the "
-                         "GetDifficultyModifierForAttackerTarget term the port "
-                         "applies to the player's own shots.  The default, "
+                         "GetDifficultyModifierForAttackerTarget table value, "
+                         "whose reciprocal applies to the player's shots and "
+                         "itself to the shots at the player.  The default, "
                          "`auto`, takes it from the session's own DIFF record "
                          "and falls back to normal when there is none.")
     ap.add_argument("--fotgame", metavar="PATH",
