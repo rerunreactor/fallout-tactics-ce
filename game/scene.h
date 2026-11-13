@@ -565,7 +565,7 @@ public:
         int32_t calledShot = 0;       // FUN_0062f890, 0 for an uncalled shot
         int32_t targetDown = 0;       // +40 fallen, +20 crippled legs
         int32_t bigTarget = 0;        // +15 when the bbox volume exceeds 81
-        int32_t difficulty = 0;       // trunc((difficultyMultiplier - 1) * 40)
+        int32_t difficulty = 0;       // trunc((modifier - 1) * 40), by side
         int32_t total = 0;            // after the [0, 95] clamp
         float distance = 0.0f;        // world units between the bounding boxes
         float light = 1.0f;           // TraceLightVisibilityToEntity
@@ -846,6 +846,8 @@ public:
     // Whether an entity belongs to the human player: the `<Player>` record's
     // own `side == 2` where the map has a player list, else `PlayerSide()`.
     bool IsPlayerOwned(int32_t index) const;
+    // A player slot's side: 0 scenery, 1 AI, 2 the human squad.
+    int32_t PlayerSlotSide(int32_t playerIndex) const;
 
     // --- milestone 11: the AI -------------------------------------------
     // `Actor::Actor_TrySneakPastDetection @00544770`'s detection radius,
@@ -1242,8 +1244,10 @@ private:
     std::vector<StatusFloat> m_statusFloats;
     std::vector<std::string> m_detectLog;
     bool m_traceDetect = false;
-    // The campaign difficulty multiplier `GetDifficultyModifierForAttackerTarget`
-    // returns; 1.0 is Normal.  `SetDifficulty` is what `--difficulty` moves.
+    // The `{game.difficulty}` table value `GetDifficultyModifierForAttackerTarget`
+    // switches to: 0.7, 1.0 (Normal), 1.3, 2.0 or 5.0.  The function returns
+    // its reciprocal for a human player's shot at an AI player's entity, and
+    // the value itself the other way round.
     float m_difficultyMultiplier = 1.0f;
 };
 

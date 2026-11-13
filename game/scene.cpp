@@ -3467,15 +3467,20 @@ bool Scene::ComputeHitChance(int32_t attackerIdx, int32_t targetIdx, HitTerms* o
     // (`_DAT_0080afd4` is 40, and `__ftol` TRUNCATES -- it is not a round).
     // MILESTONE 25 recovered the function: it switches on the `bos.cfg`
     // `{game.difficulty}` index (0 -> 0.7, 1 -> 1.0, 2 -> 1.3, 3 -> 2.0,
-    // 4 -> 5.0) and returns the RECIPROCAL when the attacker is a player
-    // character, the value itself when the target is one, and 1.0 otherwise --
-    // which is exactly the attacker/target shape §136.1 measured.  The index is
-    // a run-time choice (`--difficulty`), not a constant to bake in.
-    out->difficulty = 0;
-    if (a.playerIndex == m_spawnPlayer && t.playerIndex != m_spawnPlayer) {
-        out->difficulty = static_cast<int32_t>((m_difficultyMultiplier - 1.0f) *
-                                               k::kDifficultyScale);
-    }
+    // 4 -> 5.0).  Then, by the two entities' player slots, it returns the
+    // RECIPROCAL when the attacker's player is human (`UnknownRelatedToPlayerType
+    // @004e0110`, side 2) and the target's is AI (@004e0120, side 1), the value
+    // itself when it is the other way round, and 1.0 for anything else:
+    // scenery, friendly fire, AI on AI.  So Hard is -9 on the squad's shots
+    // and +11 on the shots at it (1.3f sits just under 1.3).  Its first line
+    // returns 1.0 when `World+0x7c9` is set; the detection notes above
+    // `Scene::PlayerSide` say why that flag is never set here.
+    float modifier = 1.0f;
+    const int32_t sideA = PlayerSlotSide(a.playerIndex);
+    const int32_t sideT = PlayerSlotSide(t.playerIndex);
+    if (sideA == 2 && sideT == 1) modifier = 1.0f / m_difficultyMultiplier;
+    else if (sideA == 1 && sideT == 2) modifier = m_difficultyMultiplier;
+    out->difficulty = static_cast<int32_t>((modifier - 1.0f) * k::kDifficultyScale);
 
     int32_t chance = out->skill + out->accuracyBonus + out->rangeClass + out->closeBonus +
                      out->targetDown + out->bigTarget + out->difficulty - out->rangePenalty -
@@ -4421,6 +4426,20 @@ bool Scene::IsPlayerOwned(int32_t index) const {
     }
     const int32_t side = PlayerSide();
     return side >= 0 && pi == side;
+}
+
+// `UnknownRelatedToPlayerType @004e0110` and its neighbour @004e0120 test the
+// Player's own field at +0x159 against 2 and 1: the `<Player>` record's side.
+// A map with no player list falls back on `PlayerSide()` for the human slot
+// and counts every other slot but 0 (scenery) as AI -- a RECONSTRUCTION.
+int32_t Scene::PlayerSlotSide(int32_t playerIndex) const {
+    if (playerIndex < 0) return 0;
+    const std::vector<PlayerDef>& ps = m_script.Players();
+    if (m_script.Loaded() && static_cast<size_t>(playerIndex) < ps.size()) {
+        return ps[static_cast<size_t>(playerIndex)].side;
+    }
+    if (playerIndex == PlayerSide()) return 2;
+    return playerIndex == 0 ? 0 : 1;
 }
 
 // MILESTONE 22 (VIDEO_GAPS M4).  One floating status word over an entity.  The
