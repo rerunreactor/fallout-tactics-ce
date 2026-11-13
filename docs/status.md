@@ -169,10 +169,7 @@ Differential-testing passes ran alongside milestones 22–25. Code comments tagg
 
 ### Mission scripting gaps
 
-- **Trigger conditions.** These always return false:
-  - GUI Open, ObjDude Alive, Skill Use Occured, Right Click on Tab;
-  - Weapon Mode Equals, World Play Mode Equals;
-  - Quantity - Player Kills, Multiplayer Map Restart.
+- **Trigger conditions.** Right Click on Tab, Weapon Mode Equals, World Play Mode Equals and Multiplayer Map Restart always return false. None of the shipped missions uses them. Gui Open's "Main" is our in-mission menu, a guess.
 - **Quantity kinds.** These count as 0: Skill, Trait, OptionalTrait, Moving, Running, Unconscious. None of the shipped missions uses them. Attribute checks support only hit points and action points.
 - **Reputation.** The squad leader carries the campaign's reputation, as the original's actor does. Our campaign keeps one total, so a leader who changes between missions takes it along.
 - **Actions.** These are logged and do nothing:
@@ -270,11 +267,7 @@ See [the save format](../kit/formats/saves.md#how-our-writer-differs).
 
 ### Good first issues
 
-Each of these was checked against the current code.
-
-| Item | Where in our code | In the original | How to check |
-|---|---|---|---|
-| **The unported trigger conditions and quantity kinds** listed under [Mission scripting gaps](#mission-scripting-gaps). | `MissionScript::EvaluateCondition`, `MissionScript::Quantity` | `EvaluateEntityQuantityCondition@004e0e20` and the condition classes | `--triggers` and `--script-log` on the tutorial maps. |
+None are open right now. Start with the bigger items below.
 
 ### Bigger items
 
