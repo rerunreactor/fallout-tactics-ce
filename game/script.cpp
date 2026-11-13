@@ -794,8 +794,15 @@ void MissionScript::ExecuteAction(Scene& scene, ScriptObj& a) {
         return;
     }
     if (k == "Add Experience To Player" || k == "Add Experience") {
-        m_experience += a.Int("XP amount", 0);
-        Logf("+%d XP (total %d)", a.Int("XP amount", 0), m_experience);
+        // `ActionAddExperience::Vtable15 @00684720` gives the WHOLE amount to
+        // every entity of the player (vtable +0x5c8, `Actor::GrantXP`); the
+        // mission's own total is kept for the debrief.
+        const int32_t amount = a.Int("XP amount", 0);
+        m_experience += amount;
+        Logf("+%d XP (total %d)", amount, m_experience);
+        for (int32_t i : EntitiesOfPlayer(scene, a.PlayerRef("Player"))) {
+            scene.GrantExperience(i, amount);
+        }
         return;
     }
     if (k == "Add Reputation") {

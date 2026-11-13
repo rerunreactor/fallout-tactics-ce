@@ -1462,16 +1462,17 @@ void Ui::DrawCharacter(Scene* scene, Canvas* c) {
         m_style.normal.DrawAligned(c, r.x0 + 610, r.y0 + 175, r.x0 + 695, r.y0 + 190,
                                    m_loc.Get("name_rank") + ": " + e.rank, m_style.windowText, 1);
     }
-    // The three level rows, rects (22, 275/286/297)-(142, ...).
-    // Nothing in this port awards experience, so the values are zero and are
-    // labelled as such rather than invented.
+    // The three level rows, rects (22, 275/286/297)-(142, ...): the level off
+    // the experience ladder, the experience, and the next level's threshold.
     static const char* const kLevelKeys[3] = {"name_level", "name_experience", "name_nextLevel"};
+    const int level = LevelForExperience(e.attr.experience);
+    const int32_t levelValues[3] = {level, e.attr.experience, ExperienceForLevel(level + 1)};
     for (int32_t i = 0; i < 3; ++i) {
         const int32_t y = r.y0 + 275 + i * 11;
         m_style.normal.DrawAligned(c, r.x0 + 22, y, r.x0 + 100, y + 10, m_loc.Get(kLevelKeys[i]),
                                    m_style.windowText, 0);
-        m_style.normal.DrawAligned(c, r.x0 + 100, y, r.x0 + 142, y + 10, i == 0 ? "1" : "0",
-                                   m_style.buttonText, 1);
+        m_style.normal.DrawAligned(c, r.x0 + 100, y, r.x0 + 142, y + 10,
+                                   std::to_string(levelValues[i]), m_style.buttonText, 1);
     }
     // `genericGui_done` at (320, 442).
     m_style.medium.DrawAligned(c, r.x0 + 320, r.y0 + 442, r.x0 + 450, r.y0 + 466,

@@ -4411,6 +4411,33 @@ int32_t Scene::PlayerSide() const {
 // tutorial maps place their `player` entity directly and carry no SpawnPoint,
 // so `m_spawnPlayer` is -1 on them and nothing is selected on the first tick.
 // `PlayerSide()` is the fallback for a map with no `<Player>` list at all.
+// `Actor::GrantXP @00576fb0` runs `Attributes::CheckLevelUpAndGiveStatGainIfSo
+// (amount, include_swift_learner = 1)` on the actor's sheet and, when the level
+// changed, `Actor::Levelup @00577280` (vtable +0x4e4).  The sheet here is the
+// live one, already summed, so it is both the source of the per-level terms
+// and the target, and the maximum it reports is raised by hand.  What
+// `Levelup` does to the CURRENT hit points isn't traced: they rise by the
+// maximum gained, a RECONSTRUCTION.  Its unarmed-attack refresh
+// (`LevelUpUnarmedAttacks`) isn't ported.
+int Scene::GrantExperience(int32_t index, int32_t amount, bool swiftLearner) {
+    if (index < 0 || static_cast<size_t>(index) >= m_entities.size()) return 0;
+    LiveEntity& e = m_entities[static_cast<size_t>(index)];
+    if (!e.isCombatant) return 0;
+    const Attributes eff = e.attr;
+    int32_t hp = 0;
+    const int levels = game::GrantExperience(&e.attr, eff, amount, swiftLearner, &hp);
+    e.xp = e.attr.experience;
+    if (levels > 0) {
+        e.attr.maxHitPoints += hp;
+        e.maxHp = e.attr.maxHitPoints;
+        if (!e.dead) e.hp = std::min(e.maxHp, e.hp + hp);
+        e.level = LevelForExperience(e.attr.experience);
+        Logf("%s reaches level %d (+%d hit points, %d skill points, %d perks to take)",
+             e.label.c_str(), e.level, hp, e.attr.skillPoints, e.attr.perksToTake);
+    }
+    return levels;
+}
+
 bool Scene::IsPlayerOwned(int32_t index) const {
     if (index < 0 || static_cast<size_t>(index) >= m_entities.size()) return false;
     const int32_t pi = m_entities[static_cast<size_t>(index)].playerIndex;

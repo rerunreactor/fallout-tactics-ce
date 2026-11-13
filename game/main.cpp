@@ -1065,15 +1065,18 @@ void ApplyRosterToScene() {
         LiveEntity& e = ents[static_cast<size_t>(squad[i])];
         for (RosterMember& m : g.camp.roster) {
             if (m.entPath != deployed[i] || !m.inSquad) continue;
+            // The member's sheet comes from its `.ent`; the experience earned
+            // since is granted again here, without Swift Learner's bonus,
+            // which it already had when it was earned.
+            g.scenep->GrantExperience(squad[i], m.xp - e.attr.experience, false);
+            e.xp = e.attr.experience;
+            e.level = game::LevelForExperience(e.attr.experience);
             if (m.maxHp > 0) {
-                e.maxHp = m.maxHp;
-                e.hp = std::max(1, m.hp);
+                e.hp = std::max(1, std::min(m.hp, e.maxHp));
             } else {
                 m.maxHp = e.maxHp;
                 m.hp = e.hp;
             }
-            e.xp = m.xp;
-            e.level = m.level;
             if (m.displayName.empty()) m.displayName = e.displayName;
             if (m.rank.empty()) m.rank = e.rank;
             // The quartermaster's issue, and anything carried out of the last
@@ -1095,11 +1098,8 @@ void HarvestRosterFromScene() {
     const std::vector<std::string> deployed = g.camp.DeployedPaths();
     const std::vector<LiveEntity>& ents = g.scenep->Entities();
     const std::vector<int32_t>& squad = g.scenep->Squad();
-    // `ActionAddExperience` credits the player, not a unit, so the mission's
-    // total is shared out evenly -- which is what the original's own debrief
-    // screen shows as a per-member figure.
-    const int32_t total = g.scenep->Script().Experience();
-    const int32_t share = deployed.empty() ? 0 : total / static_cast<int32_t>(deployed.size());
+    // Every member already has the mission's experience: `ActionAddExperience`
+    // gives each of the player's actors the whole amount (see the script).
     for (size_t i = 0; i < squad.size() && i < deployed.size(); ++i) {
         const LiveEntity& e = ents[static_cast<size_t>(squad[i])];
         for (RosterMember& m : g.camp.roster) {
@@ -1107,7 +1107,7 @@ void HarvestRosterFromScene() {
             m.hp = e.dead ? 0 : e.hp;
             m.maxHp = e.maxHp;
             m.dead = e.dead;
-            m.xp = e.xp + share;
+            m.xp = e.attr.experience;
             m.displayName = e.displayName;
             m.rank = e.rank;
             m.hand1 = e.weapon.valid ? e.weapon.path : std::string();
@@ -1125,10 +1125,9 @@ void HarvestRosterFromScene() {
                 r.count = it.count;
                 m.inventory.push_back(r);
             }
-            // `Level` is not a serialized entity property anywhere in the
-            // dumps; the campaign's own level curve is `Campaign+0x18`
-            // (10 in the shipped file).  1,000 XP a level is this port's.
-            m.level = std::max(1, 1 + m.xp / 1000);
+            // `GetLevelForXPAmount @00607950`, the ladder `Actor::GrantXP`
+            // levels by.
+            m.level = game::LevelForExperience(m.xp);
             break;
         }
     }
