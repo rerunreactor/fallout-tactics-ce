@@ -346,6 +346,9 @@ public:
     const std::string& DeathTextKey() const { return m_deathText; }
     bool ExitGridsOn() const { return m_exitGrids; }
     int32_t Reputation() const { return m_reputation; }
+    // The campaign's reputation before this mission, which the squad leader
+    // carries into it; see the `Reputation` quantity.
+    void SetCarriedReputation(int32_t r) { m_carriedReputation = r; }
     int32_t Experience() const { return m_experience; }
     bool MissionComplete() const { return m_missionComplete; }
     // MILESTONE 12: `ActionSetMissionState`'s requests, queued for the
@@ -439,6 +442,7 @@ private:
     bool m_exitGrids = false;
     bool m_missionComplete = false;
     int32_t m_reputation = 0, m_experience = 0;
+    int32_t m_carriedReputation = 0;
     std::vector<std::pair<std::string, int32_t>> m_missionState;
     MissionEnd m_end = MissionEnd::None;
     float m_realtime = 0.0f;

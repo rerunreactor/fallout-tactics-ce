@@ -6763,12 +6763,14 @@ void Scene::ReadItemInstance(const EntityInstance& inst, LiveEntity::InvItem* ou
             ReadWeapon(*proto_esh, &out->weapon);
         }
         out->weapon.path = inst.entPath;
+        out->weapon.tagName = out->tagName;
         if (out->weapon.displayName.empty()) out->weapon.displayName = out->displayName;
     } else if (out->cls == "Armour" || out->cls == "Armor") {
         if (!ReadArmour(inst.esh, &out->armour) && proto_esh != nullptr) {
             ReadArmour(*proto_esh, &out->armour);
         }
         out->armour.path = inst.entPath;
+        out->armour.tagName = out->tagName;
         if (out->armour.displayName.empty()) out->armour.displayName = out->displayName;
     }
 }
@@ -7330,6 +7332,38 @@ bool Scene::HasItemTagged(const LiveEntity& a, const std::string& tag) const {
     return a.weapon.valid && IEq(a.weapon.displayName, tag.c_str());
 }
 
+// `Actor::ScriptConditionCheckMaybe @00577900`, the `ItemsTagged` and
+// `ItemsTaggedEquipped` arms: each carried item whose `GetTagName` equals the
+// tag adds its `GetCount` (vtable +0x188), and so does each of the three
+// equipment slots at Actor+0x100e -- the two hands and the armour.  The
+// compare is case-sensitive.  An unarmed attack fills an empty hand here but
+// isn't an item.
+int32_t Scene::CountItemsTagged(int32_t index, const std::string& tag, bool equippedOnly) const {
+    if (index < 0 || static_cast<size_t>(index) >= m_entities.size() || tag.empty()) return 0;
+    const LiveEntity& a = m_entities[static_cast<size_t>(index)];
+    int32_t n = 0;
+    if (!equippedOnly) {
+        for (const LiveEntity::InvItem& it : a.inventory) {
+            if (it.tagName == tag) n += it.count;
+        }
+    }
+    if (a.weapon.valid && !a.unarmedHand[0] && a.weapon.tagName == tag) ++n;
+    if (a.weapon2.valid && !a.unarmedHand[1] && a.weapon2.tagName == tag) ++n;
+    if (a.armour.valid && a.armour.tagName == tag) ++n;
+    return n;
+}
+
+// The `IsAlert` arm asks the actor's attached BaseAI (Actor+0x181) through
+// vtable +0x2c0, `BaseAI::GetBaseAIHighestDesireRoundedUp @00514b00`: its
+// highest desire (BaseAI+0x201) above 0.5.  An actor with no BaseAI -- the
+// squad -- is never alert.
+bool Scene::IsAlert(int32_t index) const {
+    if (index < 0 || static_cast<size_t>(index) >= m_entities.size()) return false;
+    const int32_t ai = m_entities[static_cast<size_t>(index)].ai;
+    if (ai < 0 || static_cast<size_t>(ai) >= m_ai.size()) return false;
+    return m_ai[static_cast<size_t>(ai)].highestDesire > 0.5f;
+}
+
 // `Switch::MaybeUseEntity @005bbed0`.  The reach test it repeats is
 // UseEntity's.
 bool Scene::UseSwitch(int32_t actor, int32_t target, std::string* whyNot) {
@@ -7702,6 +7736,7 @@ bool Scene::MoveItem(int32_t entity, int32_t from, int32_t to, std::string* whyN
         item.displayName = w.displayName;
         item.itemType = w.itemType;
         item.entPath = w.path;
+        item.tagName = w.tagName;
         item.weight = w.weight;
         item.weapon = w;
     } else if (from == 2) {
@@ -7710,6 +7745,7 @@ bool Scene::MoveItem(int32_t entity, int32_t from, int32_t to, std::string* whyN
         item.displayName = e.armour.displayName;
         item.itemType = e.armour.itemType;
         item.entPath = e.armour.path;
+        item.tagName = e.armour.tagName;
         item.armour = e.armour;
     } else if (from >= 3 && static_cast<size_t>(from - 3) < e.inventory.size()) {
         item = e.inventory[static_cast<size_t>(from - 3)];
@@ -7763,6 +7799,7 @@ bool Scene::MoveItem(int32_t entity, int32_t from, int32_t to, std::string* whyN
             w.itemType = item.itemType;
             w.path = item.entPath;
         }
+        w.tagName = item.tagName;
         (to == 0 ? e.weapon : e.weapon2) = w;
         e.unarmedHand[to] = false;
         if (to == 0) e.ammo = w.magazine;
@@ -7779,6 +7816,7 @@ bool Scene::MoveItem(int32_t entity, int32_t from, int32_t to, std::string* whyN
             a.itemType = item.itemType;
             a.path = item.entPath;
         }
+        a.tagName = item.tagName;
         e.armour = a;
         ApplyArmourToDerived(e, e.armour, +1);
     } else if (to >= 3 || to == -1) {

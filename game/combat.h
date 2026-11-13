@@ -283,6 +283,7 @@ struct WeaponMode {
 struct WeaponDef {
     bool valid = false;
     std::string path, displayName, itemType;
+    std::string tagName;             // the item entity's `Tag Name`, which scripts count
     // MILESTONE 18: the item's own `Sprite` property, which is what
     // `WIIBase::Draw @00490b50` blits the `guibig` / `guismall` animation out
     // of when it draws the slot's icon.
@@ -312,6 +313,7 @@ struct WeaponDef {
 struct ArmourDef {
     bool valid = false;
     std::string path, displayName, itemType;
+    std::string tagName;             // as WeaponDef
     std::string spritePath;          // MILESTONE 18, as WeaponDef
     int32_t armorClass = 0;
     int32_t thresh[kDamageTypeCount] = {0, 0, 0, 0, 0, 0};
