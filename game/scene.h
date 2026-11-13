@@ -846,6 +846,10 @@ public:
     // Whether an entity belongs to the human player: the `<Player>` record's
     // own `side == 2` where the map has a player list, else `PlayerSide()`.
     bool IsPlayerOwned(int32_t index) const;
+    // `Actor::GrantXP @00576fb0`: award experience to one actor and grant the
+    // levels it reaches.  `swiftLearner` is false only for experience the
+    // roster already earned.  Returns the levels gained.
+    int GrantExperience(int32_t index, int32_t amount, bool swiftLearner = true);
 
     // --- milestone 11: the AI -------------------------------------------
     // `Actor::Actor_TrySneakPastDetection @00544770`'s detection radius,

@@ -204,7 +204,6 @@ Differential-testing passes ran alongside milestones 22–25. Code comments tagg
 | Travel speed scale, encounter probability scale | Placeholders: 1.0 and 1.5e-4. | The constants in the original aren't resolved. |
 | Campaign clock | One game minute per world-map pixel travelled. | Nothing found reads the original's campaign clock. |
 | Fog of war | Clears one tile around the squad. | The reveal function isn't recovered. |
-| Squad experience | Mission experience is shared evenly. A level is 1 + XP / 1,000. | Our own curve. The original's experience ladder is ported, but only used for map actors. |
 | Quartermaster | Each unarmed member gets a rifle, else an SMG, a pistol or a blade; armour if they have none; and 50 rounds. | There's no quartermaster window yet. |
 | Vehicles | Turning snaps, and speed is clamped to the vehicle's maximum. | Simplified. |
 
@@ -256,7 +255,7 @@ See [the save format](../kit/formats/saves.md#how-our-writer-differs).
 | Injuries | No crippled limbs or blinding. Knock-over and knockout criticals knock the target down; drop-weapon and weapon-damage criticals do nothing. |
 | Area damage | Grenades and other radial weapons hit only their target. |
 | Door locks | Doors have no lock state. Containers do, so lockpicking works on them. |
-| Levelling the squad | No level-up gains, perks or skill-point spending for squad members. |
+| Spending level-ups | Squad members level up with the original's ladder and gains, but there's no screen to pick perks or spend skill points, so they accumulate. |
 | Random encounter forces | The roll and its spawn list are computed, but the rolled force isn't placed on the encounter map. |
 | Other campaigns | Only `bos.cam` loads. Custom single missions do load. |
 | Multi-level movement | Ctrl + click (force move to the same level) is accepted but ignored. |
@@ -284,7 +283,6 @@ Each of these was checked against the current code.
 | **Critical hits on burst shots.** | `Scene::ResolveBurst` | `RollCriticalHitChance@0060fdf0`, `ResolveBurstAttackTargets@00614ac0` | difftest `CRIT` and `ATTACK` records for burst fire. |
 | **A turn-based key.** Bind Return as the game does, and support squad mode as well as individual mode. | the `Tick` key handling in `game/main.cpp`; `Scene::SetTurnBased` | `World::StartCombat@00506b40` | Play a fight both ways. |
 | **The unported trigger conditions and quantity kinds** listed under [Mission scripting gaps](#mission-scripting-gaps). | `MissionScript::EvaluateCondition`, `MissionScript::Quantity` | `EvaluateEntityQuantityCondition@004e0e20` and the condition classes | `--triggers` and `--script-log` on the tutorial maps. |
-| **Squad levelling** with the recovered experience ladder and level-up grant. | `HarvestRosterFromScene` in `game/main.cpp`; `LevelForExperience` in `game/combat.cpp` | `GetLevelForXPAmount@00607950`, `Attributes::CheckLevelUpAndGiveStatGainIfSo@00607b30` | Compare a squad member's sheet with the original after a mission. |
 
 ### Bigger items
 

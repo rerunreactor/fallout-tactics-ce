@@ -68,24 +68,41 @@ int ApplyStoredLevel(Attributes* a, int npcLevel) {
     if (npcLevel < 1) return 0;
     const int32_t needed = ExperienceForLevel(npcLevel);
     if (a->experience >= needed) return 0;
-    const int levels = LevelForExperience(needed) - LevelForExperience(a->experience);
-    a->experience = needed;
-    if (levels < 1) return 0;
-    // The three terms the grant reads come off the SUMMED sheet, so they are
-    // taken from a derived copy and the grant is written back to the base.
+    // The terms the grant reads come off the SUMMED sheet, so they are taken
+    // from a derived copy and the grant is written back to the base.
     Attributes eff = *a;
     eff.Derive();
-    const int32_t hpPerLevel = eff.endurance / 2 + 3;
-    const int32_t levelsPerPerk = eff.levelsPerPerk;
+    return GrantExperience(a, eff, needed - a->experience, false, nullptr);
+}
+
+int GrantExperience(Attributes* a, const Attributes& eff, int32_t amount, bool swiftLearner,
+                    int32_t* hpGained) {
+    if (hpGained != nullptr) *hpGained = 0;
+    if (amount <= 0) return 0;
+    const int before = LevelForExperience(a->experience);
+    if (swiftLearner && eff.swiftLearner != 0) {
+        amount += std::max(1, (eff.swiftLearner * amount * 5) / 100);
+    }
+    if (a->experience > 1000000000) return 0;
+    a->experience += amount;
+    const int levels = LevelForExperience(a->experience) - before;
+    if (levels < 1) return 0;
+    // Per level: the perk countdown (no guard on a zero `levelsPerPerk`, as in
+    // the original), the skill points, and `endurance / 2 + 3` hit points --
+    // doubled by Brutish Hulk -- plus 4 per rank of Lifegiver.
+    int32_t hpPerLevel = eff.endurance / 2 + 3;
+    if (eff.brutishHulk != 0) hpPerLevel += hpPerLevel;
+    if (eff.lifegiver > 0) hpPerLevel += 4 * eff.lifegiver;
     for (int i = 0; i < levels; ++i) {
         a->levSincePerk += 1;
-        if (levelsPerPerk > 0 && a->levSincePerk >= levelsPerPerk) {
+        if (a->levSincePerk >= eff.levelsPerPerk) {
             a->levSincePerk = 0;
             a->perksToTake += 1;
         }
         a->skillPoints += eff.skillPerLevel;
         a->maxHitPointsBonus += hpPerLevel;
     }
+    if (hpGained != nullptr) *hpGained = hpPerLevel * levels;
     return levels;
 }
 
@@ -729,6 +746,9 @@ bool ReadAttributes(const Esh& block, Attributes* out, bool additive) {
         ReadNamedInt(sub, "hthEvade", &out->hthEvade, additive);
         ReadNamedInt(sub, "dieHard", &out->dieHard, additive);
         ReadNamedInt(sub, "healer", &out->healer, additive);
+        ReadNamedInt(sub, "swiftLearner", &out->swiftLearner, additive);
+        ReadNamedInt(sub, "lifegiver", &out->lifegiver, additive);
+        ReadNamedInt(sub, "brutishHulk", &out->brutishHulk, additive);
     }
     return any;
 }

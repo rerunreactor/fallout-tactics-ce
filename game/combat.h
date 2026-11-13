@@ -186,6 +186,10 @@ struct Attributes {
     int32_t hthEvade = 0;             // + (hthEvade * unarmed) / 8 to AC
     int32_t dieHard = 0;              // + 10 * dieHard to every resist
     int32_t healer = 0;               // + 4 * healer hit points, both heal arms
+    // The three the level-up grant reads (`CheckLevelUpAndGiveStatGainIfSo`).
+    int32_t swiftLearner = 0;         // + 5% per rank of every XP award, at least 1
+    int32_t lifegiver = 0;            // + 4 hit points per level
+    int32_t brutishHulk = 0;          // doubles the per-level hit points
 
     // Derived, computed by Derive().
     int32_t maxHitPoints = 0;
@@ -232,6 +236,16 @@ int32_t ExperienceForLevel(int level);
 // `this[1]` / `this[3]`, the summed blocks), so a derived copy is made here.
 // Returns the number of levels granted.
 int ApplyStoredLevel(Attributes* a, int npcLevel);
+
+// `Attributes::CheckLevelUpAndGiveStatGainIfSo @00607b30` itself, which
+// `ApplyStoredLevel` and `Actor::GrantXP @00576fb0` both call.  With
+// `swiftLearner` set (GrantXP's case) the award first gains 5% per rank of
+// Swift Learner, at least 1.  The per-level terms -- endurance, skillPerLevel,
+// levelsPerPerk, Lifegiver, Brutish Hulk -- are read off `eff`, the summed
+// sheet; the grant is written to `a`.  Returns the levels gained, and the
+// maximum hit points added through `hpGained`.
+int GrantExperience(Attributes* a, const Attributes& eff, int32_t amount, bool swiftLearner,
+                    int32_t* hpGained);
 
 // `Actor::AutoAllocateLevelUpPoints @005775c0`, which `Actor::Levelup @00577280`
 // runs for any actor with `npclevel > 0`, through
