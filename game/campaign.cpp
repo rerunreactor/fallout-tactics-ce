@@ -248,10 +248,15 @@ bool CampaignFile::Load(const std::string& path, std::string* errorOut) {
             *errorOut = "expected varTableHeader, got '" + vt + "'";
             return false;
         }
-        const int32_t nv = r.I32();
-        for (int32_t i = 0; i < nv; ++i) varValues.push_back(r.LengthPrefixedString());
+        // Names first, then values: the same two vectors
+        // `VarTable::SaveVarTableProperties @00500b50` writes into a save, where
+        // a shipped save settles the order (see `WriteCampaignSection` in
+        // campaign_save.cpp).  bos.cam's table is empty, so only a custom
+        // campaign with variables tells the two orders apart.
         const int32_t nn = r.I32();
         for (int32_t i = 0; i < nn; ++i) varNames.push_back(r.LengthPrefixedString());
+        const int32_t nv = r.I32();
+        for (int32_t i = 0; i < nv; ++i) varValues.push_back(r.LengthPrefixedString());
     }
 
     auto f32 = [&]() {
