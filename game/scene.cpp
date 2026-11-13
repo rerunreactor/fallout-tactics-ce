@@ -3731,8 +3731,9 @@ void Scene::ResolveAttack(LiveEntity& e) {
 // `round(chance * numshots / total)` shots, at least one and never more than are
 // left, and rolls each of them independently against its own chance:
 //     `Random__GetRandomValueInFloatRange(rng, 0, 100) < chance`
-// Everything that lands goes through the normal damage path; a candidate that
-// takes none gets `Entity::ShotAtMissed`.
+// Everything that lands goes through the normal damage path, after one
+// critical roll per target (`RollBurstCritical`); a candidate that takes none
+// gets `Entity::ShotAtMissed`.
 //
 // The cone that `SphereSearch_4`'s radius stands in for is the arc test at the
 // top of `ComputeWeaponAttackHitChance`: the angle between the aim direction and
@@ -3809,10 +3810,11 @@ void Scene::ResolveBurst(LiveEntity& e, const HitTerms& primaryTerms, int32_t sh
             if (m_rng.RangeI(0.0f, 100.0f) < c.chance) ++hits;
         }
         LiveEntity& target = m_entities[static_cast<size_t>(c.idx)];
-        Logf("  burst -> %s: %d of %d shots at %d%%, %d hit", target.label.c_str(), n, shots,
-             c.chance, hits);
+        const int32_t critFlags = hits > 0 ? RollBurstCritical(e, c.chance) : 0;
+        Logf("  burst -> %s: %d of %d shots at %d%%, %d hit%s", target.label.c_str(), n, shots,
+             c.chance, hits, critFlags != 0 ? ", critical" : "");
         if (hits > 0) {
-            ApplyHit(e, target, hits, 0);
+            ApplyHit(e, target, hits, critFlags);
             ++landed;
         }
     }
@@ -3823,6 +3825,40 @@ void Scene::ResolveBurst(LiveEntity& e, const HitTerms& primaryTerms, int32_t sh
              std::min(primaryTerms.total, k::kBurstChanceCap), apBefore, e.ap, ammoBefore,
              e.ammo);
     }
+}
+
+// The critical roll for one burst target.  `ResolveBurstAttackTargets` hands
+// each target that took a hit its own copy of the combat message, carrying its
+// hit count, to `ApplyRadiusDamageToTarget @00613230`; that reaches
+// `CombatAI_EvaluateAttackApproachAndDamage @00612170`, which runs the
+// critical roll at @0061a420 ONCE for the message before its damage loop
+// over the hits -- so one critical per target, and its multiplier applies to
+// every hit on that target.  @0061a420:
+//
+//     margin = critChance - trunc(Random(0, 100));   no critical unless > 0
+//     v = trunc(Random(1, margin + 1) + Random(0, 100))
+//     Better Criticals: v = trunc(v * 1.2);  Heavy Handed: v = trunc(Random(1, v))
+//     RollCriticalEffectForBodyLocation(location, clamp(v, 1, 100))
+//
+// The critical chance itself is `CalculateAttackApproachScore @0061c170`,
+// which isn't ported; this uses the port's single-shot rule (`RollHits`) with
+// the target's own capped burst chance as the hit chance -- a RECONSTRUCTION.
+// The Slayer and Sniper re-rolls at @0061a69b and @0061a747 aren't ported,
+// as they aren't for single shots.
+int32_t Scene::RollBurstCritical(const LiveEntity& e, int32_t chance) {
+    const WeaponMode* mode = e.weapon.Mode();
+    const int32_t critChance = chance / 10 + e.weapon.criticalChance +
+                               (mode != nullptr ? mode->critBonus : 0) + e.attr.criticalChance;
+    const int32_t margin = critChance - m_rng.RangeI(0.0f, 100.0f);
+    if (margin <= 0) return 0;
+    const float spread = m_rng.Range(1.0f, static_cast<float>(margin + 1));   // drawn first
+    int32_t v = static_cast<int32_t>(spread + m_rng.Range(0.0f, 100.0f));
+    if (e.attr.betterCriticals != 0) {
+        v = static_cast<int32_t>(static_cast<float>(v) * k::kBetterCriticals);
+    }
+    if (e.attr.otrait[kOtHeavyHanded]) v = m_rng.RangeI(1.0f, static_cast<float>(v));
+    v = std::max(1, std::min(v, 100));
+    return RollCriticalEffect(&m_rng, 0 /* Torso, an uncalled shot */, v);
 }
 
 // ---------------------------------------------------------------------------

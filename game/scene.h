@@ -1088,6 +1088,8 @@ private:
     // ResolveBurstAttackTargets @00614ac0: the shot allotment across the cone.
     void ResolveBurst(LiveEntity& e, const HitTerms& primaryTerms, int32_t shots,
                       float apBefore, int32_t ammoBefore);
+    // @0061a420's critical roll for one burst target; its critical flags.
+    int32_t RollBurstCritical(const LiveEntity& e, int32_t chance);
     // ApplyRadiusDamageToTarget + Actor::ApplyAttackResultToEntity + ApplyDamage.
     void ApplyHit(LiveEntity& attacker, LiveEntity& target, int32_t hits, int32_t critFlags);
     void KillEntity(LiveEntity& e, const std::string& damageType, int32_t damage, int32_t hits);
