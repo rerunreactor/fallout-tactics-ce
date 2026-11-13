@@ -174,11 +174,8 @@ Differential-testing passes ran alongside milestones 22–25. Code comments tagg
   - GUI Open, ObjDude Alive, Skill Use Occured, Right Click on Tab;
   - Weapon Mode Equals, World Play Mode Equals;
   - Quantity - Player Kills, Multiplayer Map Restart.
-- **Quantity kinds.** These count as 0:
-  - Skill, Trait, OptionalTrait, ItemsTagged, ItemsTaggedEquipped;
-  - Reputation, Moving, Running, Sneaking, IsAlert, Unconscious.
-
-  Attribute checks support only hit points and action points.
+- **Quantity kinds.** These count as 0: Skill, Trait, OptionalTrait, Moving, Running, Unconscious. None of the shipped missions uses them. Attribute checks support only hit points and action points.
+- **Reputation.** The squad leader carries the campaign's reputation, as the original's actor does. Our campaign keeps one total, so a leader who changes between missions takes it along.
 - **Actions.** These are logged and do nothing:
   - Play Bink Movie;
   - Lock/Unlock Door.

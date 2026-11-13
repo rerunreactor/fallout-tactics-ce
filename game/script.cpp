@@ -575,7 +575,10 @@ int32_t MissionScript::EntityByTag(Scene& scene, const std::string& tag) const {
 // OptionalTrait / ItemsTagged / ItemsTaggedEquipped / Reputation / Selected /
 // Standing / Crouching / Prone / Moving / Running / Sneaking / IsAlert /
 // Unconcious; the ones the shipped campaign actually uses are ported and the
-// rest log "Unknown quantity type" as the original does.
+// rest log "Unknown quantity type" as the original does.  From Attribute on,
+// it sums each entity's own answer, `Actor::ScriptConditionCheckMaybe
+// @00577900` (vtable +0x7cc); every arm there but Reputation first requires
+// the actor to be in the condition's zone.
 int32_t MissionScript::Quantity(Scene& scene, const std::vector<int32_t>& set,
                                 const StringPair& type, const WorldZone* zone,
                                 bool inLocation) const {
@@ -596,6 +599,22 @@ int32_t MissionScript::Quantity(Scene& scene, const std::vector<int32_t>& set,
             n += e.kills;
         } else if (type.first == "Selected") {
             if (scene.Selected() == i) ++n;
+        } else if (type.first == "ItemsTagged" || type.first == "ItemsTaggedEquipped") {
+            if (inZone(e)) {
+                n += scene.CountItemsTagged(i, type.second, type.first == "ItemsTaggedEquipped");
+            }
+        } else if (type.first == "Sneaking") {
+            // `Actor::IsHidden @00541f40`: sneaking, or a stealth device.
+            if (e.sneaking && inZone(e)) ++n;
+        } else if (type.first == "IsAlert") {
+            if (scene.IsAlert(i) && inZone(e)) ++n;
+        } else if (type.first == "Reputation") {
+            // The actor's own Actor+0xfed, which only `Actor::AddToReputation
+            // @0056cea0` changes.  `ActionAddReputation::Vtable15 @00684380`
+            // gives it to player 1's first actor when that player is human --
+            // the squad leader -- so that is where the campaign's total lives.
+            const std::vector<int32_t>& squad = scene.Squad();
+            if (!squad.empty() && squad.front() == i) n += m_carriedReputation + m_reputation;
         } else if (type.first == "Standing" || type.first == "Crouching" ||
                    type.first == "Prone") {
             if (!e.dead && e.posture == type.first.substr(0, type.first.size() - 3)) ++n;

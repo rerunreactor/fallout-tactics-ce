@@ -728,6 +728,12 @@ public:
     // `Actor::ContainsItemWithTagName` or `PlayerEquippedItemWithTagName`:
     // whether the actor has the key a locked container or a switch asks for.
     bool HasItemTagged(const LiveEntity& a, const std::string& tag) const;
+    // The `ItemsTagged` / `ItemsTaggedEquipped` script quantities: the stack
+    // counts of the items whose `Tag Name` is `tag`, in the pack and the three
+    // equipment slots, or in the slots alone.
+    int32_t CountItemsTagged(int32_t index, const std::string& tag, bool equippedOnly) const;
+    // The `IsAlert` script quantity: the actor's BaseAI wants something.
+    bool IsAlert(int32_t index) const;
     // The queued activate, run once a tick: an actor that was out of reach
     // walked to the object and uses it on arrival.
     void StepPendingUse();
