@@ -711,9 +711,56 @@ bool MissionScript::EvaluateCondition(Scene& scene, const ScriptObj& c) {
         return alive > 0;
     }
 
-    // Not ported: GUI Open, ObjDude Alive, Skill Use
-    // Occured, Right Click on Tab, Timer, Weapon Mode Equals, World Play Mode
-    // Equals, Quantity - Player Kills, Multiplayer Map Restart.
+    if (c.cls == "Quantity - Player Kills") {
+        // `ConditionQuantityCheckPlayerKills::Evaluate @00691640`: the kills
+        // `Player` has made of `of Player`'s entities, against `has killed`.
+        auto it = m_playerKills.find({c.PlayerRef("Player"), c.PlayerRef("of Player")});
+        return c.Qual("has killed").Evaluate(it == m_playerKills.end() ? 0 : it->second);
+    }
+
+    if (c.cls == "Main Actor Alive") {
+        // `ConditionObjDudeAlive::EvaluateDudeAliveCondition @00695460`:
+        // player 1's first actor -- the squad leader -- when that player is
+        // human, asked `IsAlive` (vtable +0x480).  Its own properties are unused.
+        const std::vector<int32_t>& squad = scene.Squad();
+        return !squad.empty() && !scene.Entities()[static_cast<size_t>(squad.front())].dead;
+    }
+
+    if (c.cls == "Skill Use Occured") {
+        // `ConditionSkillUseOccured::Evaluate @0068f8b0`: the event's skill,
+        // then the tags of its user and its target, each an exact compare.
+        if (m_skillEvent == nullptr) return false;
+        const std::vector<LiveEntity>& es = scene.Entities();
+        auto tagOf = [&](int32_t i) {
+            return (i >= 0 && static_cast<size_t>(i) < es.size()) ? es[static_cast<size_t>(i)].tag
+                                                                   : std::string();
+        };
+        return m_skillEvent->skill == c.Str("used Skill") &&
+               tagOf(m_skillEvent->user) == c.Str("Entity") &&
+               tagOf(m_skillEvent->target) == c.Str("on Entity");
+    }
+
+    if (c.cls == "Gui Open") {
+        // `ConditionGUIOpen::Evaluate @006934d0` reads the open window off
+        // WGameMain+0x156 (0 is none, 4 the loot window) and, for the loot
+        // window, checks its other party against `Other Unit`.  `Gui` defaults
+        // to "None": no window up.
+        // The loot window is the scene's own state in this port, so it is read
+        // there rather than off the screen main.cpp reports.
+        std::string want = c.Str("Gui");
+        if (want.empty()) want = "None";
+        const int32_t loot = scene.LootTarget();
+        const std::string open = loot >= 0 ? std::string("Loot") : scene.OpenGui();
+        if (open != want) return false;
+        const std::string other = c.Str("Other Unit");
+        if (want == "Loot" && !other.empty()) {
+            return scene.Entities()[static_cast<size_t>(loot)].tag == other;
+        }
+        return true;
+    }
+
+    // Not ported: Right Click on Tab, Weapon Mode Equals, World Play Mode
+    // Equals, Multiplayer Map Restart.  None of the shipped missions uses them.
     return false;
 }
 
@@ -1091,6 +1138,38 @@ void MissionScript::Tick(Scene& scene) {
         }
         m_pendingSpeechEvents.clear();
     }
+    // The skill events, the same way: each one is the event the "Skill Use
+    // Occured" triggers (mask 2) are evaluated against, once.
+    for (const SkillEvent& ev : m_pendingSkillEvents) {
+        m_skillEvent = &ev;
+        for (Trigger& t : m_triggers) {
+            if ((t.mask & 2) == 0) continue;
+            if (!t.repeat && t.fireCount > 0) continue;
+            bool all = true;
+            for (const ScriptObj& c : t.conds) {
+                if (!EvaluateCondition(scene, c)) {
+                    all = false;
+                    break;
+                }
+            }
+            if (all) t.armed = true;
+        }
+    }
+    m_skillEvent = nullptr;
+    m_pendingSkillEvents.clear();
+}
+
+void MissionScript::RaiseSkillEvent(const std::string& skill, int32_t user, int32_t target) {
+    SkillEvent e;
+    e.skill = skill;
+    e.user = user;
+    e.target = target;
+    m_pendingSkillEvents.push_back(e);
+}
+
+void MissionScript::CountPlayerKill(int32_t killerPlayer, int32_t victimPlayer) {
+    if (killerPlayer < 0 || victimPlayer < 0) return;
+    ++m_playerKills[{killerPlayer, victimPlayer}];
 }
 
 void MissionScript::RaiseSpeechEvent(const std::string& event) {

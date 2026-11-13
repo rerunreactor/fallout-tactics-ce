@@ -2858,6 +2858,24 @@ void Tick() {
         g.scenep->SetListener(wx, wz);
         g.audio.SetTick(g.scenep->Ticks());
     }
+    // The `Gui Open` condition's view of the interface (WGameMain+0x156).  The
+    // in-mission menu as "Main" is a RECONSTRUCTION; the debrief and the key
+    // list match no name.
+    if (g.uiOn) {
+        const char* gui = "None";
+        switch (g.ui.Screen()) {
+            case UiScreen::None: gui = "None"; break;
+            case UiScreen::Inventory: gui = "Inv"; break;
+            case UiScreen::Character: gui = "Char"; break;
+            case UiScreen::Pipboy: gui = "Pipboy"; break;
+            case UiScreen::Skilldex: gui = "Skilldex"; break;
+            case UiScreen::Menu: gui = "Main"; break;
+            case UiScreen::MenuOptions: gui = "Options"; break;
+            case UiScreen::Loot: gui = "Loot"; break;
+            default: gui = ""; break;
+        }
+        g.scenep->SetOpenGui(gui);
+    }
     g.scenep->Update(deltaMs);
     if (g.audio.Enabled()) g.audio.Update(deltaMs);
     if (g.follow && g.scenep->Selected() >= 0) {

@@ -3970,6 +3970,7 @@ void Scene::ApplyHit(LiveEntity& attacker, LiveEntity& target, int32_t hits, int
         // `Actor::IncrementKillCount` and the XP award; the XP table is in no
         // dump and no shipped file (NOTES.md 24), so the kill is only logged.
         ++attacker.kills;
+        m_script.CountPlayerKill(attacker.playerIndex, target.playerIndex);
         Logf("%s is killed by %s", target.label.c_str(), attacker.label.c_str());
         return;
     }
@@ -5977,6 +5978,9 @@ bool Scene::UseSkill(int32_t actor, const std::string& skill, int32_t target,
         }
         a.ap -= static_cast<float>(cost);
     }
+    // `Actor::PerformSkillUseCheck` raises the skill event here, once the AP
+    // are paid and before the skill takes effect.
+    m_script.RaiseSkillEvent(skill, actor, target);
 
     // The chance: the actor's own skill, plus every carried item's
     // `Effect/Skills` bonus for it.
