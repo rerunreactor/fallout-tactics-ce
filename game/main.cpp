@@ -130,6 +130,9 @@ struct App {
     int32_t bandX0 = 0, bandY0 = 0, bandX1 = 0, bandY1 = 0;
 
     // --- milestone 8 -----------------------------------------------------
+    // `{game.turnBasedSingle}`: 0 continuous, 1 individual, 2 squad.  Which
+    // turn-based mode starting a fight picks; see `Scene::SetTurnBased`.
+    int32_t turnBasedSingle = 0;
     bool traceCombat = false;          // --trace-combat
     bool traceAi = false;              // --trace-ai (milestone 11)
     std::vector<std::string> hud;      // the last few combat messages, for the overlay
@@ -885,7 +888,8 @@ void RunOrders() {
             std::printf("frame %lld: weapon mode %d -> %s: %s\n", (long long)g.frameNo, i,
                         arg.c_str(), ok ? "ok" : "refused");
         } else if (what == "turnbased") {
-            g.scenep->SetTurnBased(arg != "off" && arg != "0");
+            const int32_t mode = arg == "individual" ? 1 : (arg == "squad" ? 2 : 0);
+            g.scenep->SetTurnBased(arg != "off" && arg != "0", mode);
         } else if (what == "endturn") {
             g.scenep->EndTurn();
             const int32_t a = g.scenep->ActiveTurnEntity();
@@ -1607,6 +1611,7 @@ bool CampaignEnterMission(const std::string& misPath, int32_t coreIndex,
     PaintLoadingScreen(misPath, 0.1f);
     std::unique_ptr<Scene> next(new Scene());
     next->SetAudio(g.audio.Enabled() ? &g.audio : nullptr);
+    next->SetTurnBasedSetting(g.turnBasedSingle);
     std::string err;
     if (!next->Load(full, opt, &err)) {
         std::fprintf(stderr, "enter mission %s: %s\n", full.c_str(), err.c_str());
@@ -2590,7 +2595,18 @@ void Tick() {
                         case SDLK_r: action = "reload"; break;
                         case SDLK_y: action = "cycleWeaponModes"; break;
                         case SDLK_u: action = "swapHands"; break;
-                        case SDLK_SPACE: action = "cycleMembers"; break;
+                        // `<ctrl>space = {squadEndTurn}`.
+                        case SDLK_SPACE:
+                            action = (ev.key.keysym.mod & KMOD_CTRL) != 0 ? "squadEndTurn"
+                                                                          : "cycleMembers";
+                            break;
+                        // `return = {shout/toggleTurnBased}`; `<shift>return`
+                        // is the multiplayer team chat.
+                        case SDLK_RETURN:
+                            if ((ev.key.keysym.mod & KMOD_SHIFT) == 0) {
+                                action = "shout/toggleTurnBased";
+                            }
+                            break;
                         case SDLK_BACKSPACE: action = "characterEndTurn/stop"; break;
                         case SDLK_F1: action = "select1"; break;
                         case SDLK_F2: action = "select2"; break;
@@ -3191,7 +3207,8 @@ void Usage() {
                  "\n  -- milestone 8 --\n"
                  "  --attack N:i                           the selection attacks entity i\n"
                  "  --mode N:single|burst|swing|...        pick the active weapon mode\n"
-                 "  --turnbased N:on|off                   toggle turn-based mode\n"
+                 "  --turnbased N:on|off|individual|squad  turn-based mode; `on` picks the\n"
+                 "                                         mode as bos.cfg's game.turnBasedSingle\n"
                  "  --endturn N:1                          end the active turn\n"
                  "  --seed S / --seed-at N:S               the combat RNG seed\n"
                  "  --trace-combat                         dump every combatant per frame\n"
@@ -3803,6 +3820,7 @@ static int RunGame(int argc, char** argv) {
                 // flag and `--run-mode 1|2` did nothing against a retail tree.
                 if (key == "game.runMode" && !runModeFromFlag) g.runMode = n;
                 else if (key == "game.formationMode" && !formationFromFlag) g.formationMode = n;
+                else if (key == "game.turnBasedSingle") g.turnBasedSingle = n;
             }
         }
         if (g.uiOn) g.ui.SetFormationMode(g.formationMode);
@@ -3835,6 +3853,7 @@ static int RunGame(int argc, char** argv) {
         return 1;
     }
     g.scenep->SeedRng(combatSeed);
+    g.scenep->SetTurnBasedSetting(g.turnBasedSingle);
     if (noAi) g.scenep->DisableAI();
     if (noScript) g.scenep->EnableScript(false);
     if (traceDetect) g.scenep->TraceDetection(true);

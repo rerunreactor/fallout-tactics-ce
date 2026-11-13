@@ -41,7 +41,7 @@ It was checked against the code. In the source, every approximation is labelled 
   - action-point costs;
   - the turn queue;
   - hit reactions, deaths and blood.
-- Real-time combat works, and so does individual turn-based combat.
+- Real-time combat works, and so does turn-based combat, individual or squad.
 - Several of these numbers have been checked against recordings of the original. See [difftest/README.md](../difftest/README.md).
 
 ### Characters
@@ -249,7 +249,7 @@ See [the save format](../kit/formats/saves.md#how-our-writer-differs).
 | Multiplayer | Not part of this port. |
 | Options and credits on the front end | The title menu's entries only print a message. |
 | Movies | Bink isn't decoded. The intro, mission movies and the Play Bink Movie action are skipped. |
-| Turn-based controls | Turn-based play works but is reachable only through `--turnbased`. There's no key binding (the game uses Return), and squad turn-based mode can't be selected. |
+| Starting turn-based by itself | Return starts and ends turn-based play, but a fight doesn't switch to it on its own when `bos.cfg`'s `game.turnBasedSingle` asks for it (`FinalizeCombatMessageFields@00611730` calls `AdvanceCombatTurnPhase@00506b30`). Ending a member's turn doesn't put them on overwatch. |
 | Vehicle controls | The interface has no way to board or drive a vehicle. Vehicles are reachable only through `--vehicle`. |
 | Trading and gambling | No barter or gambling screens. The quartermaster's issue is automatic. |
 | Targeted shots | No called-shot interface, so every shot is uncalled. |
@@ -282,7 +282,6 @@ Each of these was checked against the current code.
 | **Initial facing of map actors.** When an actor stores no `animationRotation`, `PickSprite` derives the facing from floats 0 and 2 of the `frame` matrix. The original's forward axis is the third row (floats 6 and 8), and the property's default is 0. In the 72 maps of `Mis-Main_0.bos`, the 47 actors without a stored rotation all have identity matrices, so we draw them at direction 2 instead of 0 (with eight directions). See [the format notes](../kit/formats/mis.md#facing). | `mapview/ent.cpp`, `PickSprite` | `Entity::Entity_UpdateFacingFromVelocityAndBounds@005e7080` | Render the first mission with `mapview` and compare idle actors with the original. |
 | **The other half of the difficulty term**, and reading `game.difficulty` from `bos.cfg`. | `Scene::ComputeHitChance`; the `bos.cfg` reader in `game/main.cpp` | `GetDifficultyModifierForAttackerTarget@0061b990` | difftest: the `DIFF` record, and HIT records where the player is the target. |
 | **Critical hits on burst shots.** | `Scene::ResolveBurst` | `RollCriticalHitChance@0060fdf0`, `ResolveBurstAttackTargets@00614ac0` | difftest `CRIT` and `ATTACK` records for burst fire. |
-| **A turn-based key.** Bind Return as the game does, and support squad mode as well as individual mode. | the `Tick` key handling in `game/main.cpp`; `Scene::SetTurnBased` | `World::StartCombat@00506b40` | Play a fight both ways. |
 | **The unported trigger conditions and quantity kinds** listed under [Mission scripting gaps](#mission-scripting-gaps). | `MissionScript::EvaluateCondition`, `MissionScript::Quantity` | `EvaluateEntityQuantityCondition@004e0e20` and the condition classes | `--triggers` and `--script-log` on the tutorial maps. |
 | **Squad levelling** with the recovered experience ladder and level-up grant. | `HarvestRosterFromScene` in `game/main.cpp`; `LevelForExperience` in `game/combat.cpp` | `GetLevelForXPAmount@00607950`, `Attributes::CheckLevelUpAndGiveStatGainIfSo@00607b30` | Compare a squad member's sheet with the original after a mission. |
 

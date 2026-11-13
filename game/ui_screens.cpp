@@ -741,8 +741,9 @@ void Ui::DrawGameBar(Scene* scene, Canvas* c) {
         c->Blit(*Res()->Image("gui/btn/endtrn_up.zar"), ex + 43, ey + 15);
         const int32_t active = scene->ActiveTurnEntity();
         m_style.lite.DrawAligned(c, ex, ey - 12, ex + 119, ey,
-                                 active == sel ? m_loc.Get("misc_yourturn")
-                                               : m_loc.Get("misc_otherturn"),
+                                 (active == sel || (sel >= 0 && scene->IsTurnActiveFor(sel)))
+                                     ? m_loc.Get("misc_yourturn")
+                                     : m_loc.Get("misc_otherturn"),
                                  m_style.buttonText, 2);
     }
     c->SetClip(0, 0, m_W, m_H);
@@ -2410,9 +2411,28 @@ bool Ui::Action(Scene* scene, const std::string& action) {
         forEachSelected([&](int32_t i) { scene->StopMove(i); });
         return true;
     }
-    if (action == "characterEndTurn/stop" || action == "squadEndTurn") {
-        if (scene->TurnBased()) scene->EndTurn();
-        else forEachSelected([&](int32_t i) { scene->StopMove(i); });
+    // `WGameMain::SelectOrCycleTargetEntity @00477a80`: in turn-based, and only
+    // on the player's own turn, `squadEndTurn` ends the whole entry (command
+    // 0x22, `StartNextCombatTurn`) and `characterEndTurn` ends each selected
+    // member's turn (command 0x0d, `AdvanceCombatTurnWithOverwatch`).
+    if (action == "squadEndTurn") {
+        if (scene->TurnBased() && scene->PlayersTurn()) scene->EndTurn();
+        return true;
+    }
+    if (action == "characterEndTurn/stop") {
+        if (!scene->TurnBased()) forEachSelected([&](int32_t i) { scene->StopMove(i); });
+        else if (scene->PlayersTurn()) forEachSelected([&](int32_t i) { scene->EndTurnFor(i); });
+        return true;
+    }
+    // Return.  `WGameMain::SelectNextLegalTargetEntity @00477bd0` (misnamed:
+    // it is the single-player half of `shout/toggleTurnBased`) sends command
+    // 0x1f, which `Actor::ActOnControllerCommand` turns into
+    // `AdvanceCombatTurnPhase(entity, force = 1)`, from continuous play; in
+    // turn-based, on the player's own turn only, it sends 0x1e,
+    // `World::EndCombatAndGrantSquadXP`.
+    if (action == "shout/toggleTurnBased") {
+        if (!scene->TurnBased()) scene->SetTurnBased(true);
+        else if (scene->PlayersTurn()) scene->SetTurnBased(false);
         return true;
     }
     if (action == "cycleWeaponModes") {

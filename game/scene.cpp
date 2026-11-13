@@ -2355,7 +2355,7 @@ bool Scene::OrderMove(int32_t index, int32_t worldX, int32_t worldZ, bool run) {
         return false;
     }
     // `World::IsEntityUsableThisTurn @00507270` -- see OrderAttack.
-    if (m_combatMode != 0 && ActiveTurnEntity() != index) {
+    if (m_combatMode != 0 && !IsTurnActiveFor(index)) {
         return false;
     }
     LiveEntity& e = m_entities[static_cast<size_t>(index)];
@@ -3514,7 +3514,7 @@ bool Scene::OrderAttack(int32_t attackerIdx, int32_t targetIdx, std::string* why
     }
     // `World::IsEntityUsableThisTurn @00507270`: in mode 0 anyone may act; in
     // turn-based only the entity the queue is pointing at may.
-    if (m_combatMode != 0 && ActiveTurnEntity() != attackerIdx) {
+    if (m_combatMode != 0 && !IsTurnActiveFor(attackerIdx)) {
         if (whyNot != nullptr) *whyNot = "not this entity's turn";
         return false;
     }
@@ -4172,30 +4172,35 @@ bool Scene::HitRateTest(int32_t attacker, int32_t target, int32_t n, HitTerms* t
 // ---------------------------------------------------------------------------
 // Turn-based mode.
 // ---------------------------------------------------------------------------
-void Scene::SetTurnBased(bool on) {
+void Scene::SetTurnBased(bool on, int32_t mode) {
     if (on == (m_combatMode != 0)) return;
     if (on) {
-        // `World::StartCombat @00506b40` picks 1 (individual) or 2 (squad) from
-        // the campaign setting; fotgame has no campaign settings file, so it
-        // uses 1, individual turn-based, which is the one the queue key below
-        // was written for.
-        m_combatMode = 1;
+        // `AdvanceCombatTurnPhase @00506b30` (the original's StartCombat) sets
+        // `World+0x427 = (turnBasedSingle != 1) + 1`: setting 1 is individual
+        // turn-based, and 0 (continuous) or 2 is squad -- so starting it by
+        // hand from continuous play, as Return does, gives squad mode.
+        m_combatMode = (mode == 1 || mode == 2) ? mode : (m_turnBasedSetting != 1 ? 2 : 1);
         m_round = 1;
+        m_turnAt = 0;
+        m_turnDone.clear();
         RebuildTurnQueue();
         m_turnAt = 0;
-        if (!m_turnQueue.empty()) BeginTurnFor(m_turnQueue[0]);
-        Logf("turn-based ON: round 1, %zu combatants", m_turnQueue.size());
+        if (!m_turnQueue.empty()) BeginTurnFor(0);
+        Logf("turn-based ON (%s): round 1, %zu turns", m_combatMode == 2 ? "squad" : "individual",
+             m_turnQueue.size());
         for (size_t i = 0; i < m_turnQueue.size() && i < 6; ++i) {
             const LiveEntity& q = m_entities[static_cast<size_t>(m_turnQueue[i])];
-            Logf("  queue[%zu] = %d %s  key %.2f (AP %.0f/%d x PE %d)", i, m_turnQueue[i],
-                 q.label.c_str(), m_turnKey[i], q.ap, q.maxAp, q.attr.perception);
+            Logf("  queue[%zu] = %d %s%s  key %.2f", i, m_turnQueue[i], q.label.c_str(),
+                 m_turnMembers[i].size() > 1 ? " and the squad" : "", m_turnKey[i]);
         }
     } else {
         // `World::EndCombatAndGrantSquadXP @00506fe0` clears the queue and puts
         // the mode back to 0.
         m_combatMode = 0;
         m_turnQueue.clear();
+        m_turnMembers.clear();
         m_turnKey.clear();
+        m_turnDone.clear();
         m_turnAt = 0;
         // Everyone comes back to full AP: outside combat AdjustAP2 refills
         // continuously, so this is where that lands.
@@ -4207,37 +4212,60 @@ void Scene::SetTurnBased(bool on) {
 }
 
 void Scene::RebuildTurnQueue() {
+    // `AdvanceCombatTurnPhase` builds one queue entry per unit, except that in
+    // squad mode a human player's units share one entry (the
+    // `SetOverwatchForReadyPlayerUnits` arm at 0x506c63); an AI player's
+    // units always get one each.
+    //
     // `TurnQueueEntry::RecomputeOrderKey @0050b160`:
     //     key = mean over the entry's members of (AP / maxAP) * Perception
     // and the entity that started the fight gets +100.  The queue is sorted
     // descending, so the highest Perception acts first.
-    std::vector<int32_t> live;
+    std::vector<std::vector<int32_t>> entries;
+    int32_t squadEntry = -1;
     for (size_t i = 0; i < m_entities.size(); ++i) {
         const LiveEntity& e = m_entities[i];
-        if (e.isCombatant && !e.dead) live.push_back(static_cast<int32_t>(i));
+        if (!e.isCombatant || e.dead) continue;
+        const int32_t idx = static_cast<int32_t>(i);
+        if (m_combatMode == 2 && IsPlayerOwned(idx)) {
+            if (squadEntry < 0) {
+                squadEntry = static_cast<int32_t>(entries.size());
+                entries.emplace_back();
+            }
+            entries[static_cast<size_t>(squadEntry)].push_back(idx);
+        } else {
+            entries.push_back({idx});
+        }
     }
-    std::vector<float> keys(live.size(), 0.0f);
-    for (size_t i = 0; i < live.size(); ++i) {
-        const LiveEntity& e = m_entities[static_cast<size_t>(live[i])];
-        const float frac = e.maxAp > 0 ? e.ap / static_cast<float>(e.maxAp) : 0.0f;
-        keys[i] = frac * static_cast<float>(e.attr.perception);
+    std::vector<float> keys(entries.size(), 0.0f);
+    for (size_t i = 0; i < entries.size(); ++i) {
+        float sum = 0.0f;
+        for (int32_t m : entries[i]) {
+            const LiveEntity& e = m_entities[static_cast<size_t>(m)];
+            const float frac = e.maxAp > 0 ? e.ap / static_cast<float>(e.maxAp) : 0.0f;
+            sum += frac * static_cast<float>(e.attr.perception);
+        }
+        keys[i] = sum / static_cast<float>(entries[i].size());
     }
-    std::vector<size_t> order(live.size());
+    std::vector<size_t> order(entries.size());
     for (size_t i = 0; i < order.size(); ++i) order[i] = i;
     std::stable_sort(order.begin(), order.end(),
                      [&](size_t x, size_t y) { return keys[x] > keys[y]; });
     const int32_t wasActive = ActiveTurnEntity();
     m_turnQueue.clear();
+    m_turnMembers.clear();
     m_turnKey.clear();
     for (size_t i : order) {
-        m_turnQueue.push_back(live[i]);
+        m_turnQueue.push_back(entries[i].front());
+        m_turnMembers.push_back(entries[i]);
         m_turnKey.push_back(keys[i]);
     }
-    // Keep pointing at the same actor when the queue is rebuilt mid-round.
+    // Keep pointing at the same entry when the queue is rebuilt mid-round.
     m_turnAt = 0;
     if (wasActive >= 0) {
-        for (size_t i = 0; i < m_turnQueue.size(); ++i) {
-            if (m_turnQueue[i] == wasActive) {
+        for (size_t i = 0; i < m_turnMembers.size(); ++i) {
+            const std::vector<int32_t>& ms = m_turnMembers[i];
+            if (std::find(ms.begin(), ms.end(), wasActive) != ms.end()) {
                 m_turnAt = i;
                 break;
             }
@@ -4245,15 +4273,44 @@ void Scene::RebuildTurnQueue() {
     }
 }
 
+bool Scene::IsTurnActiveFor(int32_t index) const {
+    if (m_combatMode == 0) return true;
+    if (m_turnAt >= m_turnMembers.size()) return false;
+    const std::vector<int32_t>& ms = m_turnMembers[m_turnAt];
+    return std::find(ms.begin(), ms.end(), index) != ms.end() &&
+           std::find(m_turnDone.begin(), m_turnDone.end(), index) == m_turnDone.end();
+}
+
 int32_t Scene::ActiveTurnEntity() const {
-    if (m_combatMode == 0 || m_turnAt >= m_turnQueue.size()) return -1;
+    if (m_combatMode == 0 || m_turnAt >= m_turnMembers.size()) return -1;
+    for (int32_t m : m_turnMembers[m_turnAt]) {
+        if (!m_entities[static_cast<size_t>(m)].dead && IsTurnActiveFor(m)) return m;
+    }
     return m_turnQueue[m_turnAt];
 }
 
-void Scene::BeginTurnFor(int32_t index) {
-    if (index < 0 || index >= static_cast<int32_t>(m_entities.size())) return;
-    LiveEntity& e = m_entities[static_cast<size_t>(index)];
-    e.aiNextTick = m_ticks;
+bool Scene::PlayersTurn() const {
+    const int32_t a = ActiveTurnEntity();
+    return a >= 0 && IsPlayerOwned(a);
+}
+
+void Scene::BeginTurnFor(int32_t entry) {
+    if (entry < 0 || static_cast<size_t>(entry) >= m_turnMembers.size()) return;
+    for (int32_t m : m_turnMembers[static_cast<size_t>(entry)]) {
+        m_entities[static_cast<size_t>(m)].aiNextTick = m_ticks;
+    }
+}
+
+void Scene::EndTurnFor(int32_t index) {
+    // `AdvanceCombatTurnWithOverwatch @005072c0` puts the unit on overwatch
+    // (not modelled here) and moves the queue on only when
+    // `CheckAnyEntityHasLegalTargetAndTurn` finds nobody in the entry left.
+    if (m_combatMode == 0 || !IsTurnActiveFor(index)) return;
+    m_turnDone.push_back(index);
+    for (int32_t m : m_turnMembers[m_turnAt]) {
+        if (!m_entities[static_cast<size_t>(m)].dead && IsTurnActiveFor(m)) return;
+    }
+    EndTurn();
 }
 
 void Scene::EndTurn() {
@@ -4262,27 +4319,32 @@ void Scene::EndTurn() {
     // AP to full, re-sort, and start a new round.  The world clock advances by
     // `kRoundSeconds / queueSize` per turn, so a whole round is 7 seconds.
     if (m_combatMode == 0 || m_turnQueue.empty()) return;
+    m_turnDone.clear();
     const size_t n = m_turnQueue.size();
     for (size_t step = 0; step < n; ++step) {
         ++m_turnAt;
         if (m_turnAt >= n) break;
-        const LiveEntity& e = m_entities[static_cast<size_t>(m_turnQueue[m_turnAt])];
-        if (!e.dead) {
-            BeginTurnFor(m_turnQueue[m_turnAt]);
-            return;
+        for (int32_t m : m_turnMembers[m_turnAt]) {
+            if (!m_entities[static_cast<size_t>(m)].dead) {
+                BeginTurnFor(static_cast<int32_t>(m_turnAt));
+                return;
+            }
         }
     }
     // A new round: `TurnQueueEntry::RefreshAllMembersAP @0050ae90` calls
     // `ActorUnconsciousAPHandling(true)` on every member, which sets ap = maxAP.
     ++m_round;
-    for (int32_t i : m_turnQueue) {
-        LiveEntity& e = m_entities[static_cast<size_t>(i)];
-        if (!e.dead) e.ap = static_cast<float>(e.maxAp);
+    for (const std::vector<int32_t>& ms : m_turnMembers) {
+        for (int32_t i : ms) {
+            LiveEntity& e = m_entities[static_cast<size_t>(i)];
+            if (!e.dead) e.ap = static_cast<float>(e.maxAp);
+        }
     }
+    m_turnAt = m_turnMembers.size();   // nobody is active while it re-sorts
     RebuildTurnQueue();
     m_turnAt = 0;
     Logf("--- round %lld ---", static_cast<long long>(m_round));
-    if (!m_turnQueue.empty()) BeginTurnFor(m_turnQueue[0]);
+    if (!m_turnQueue.empty()) BeginTurnFor(0);
 }
 
 // (milestone 8's ActorAI is gone: milestone 11 replaces it with the real
@@ -5059,7 +5121,7 @@ float Scene::DemeanourAttack(BaseAiState& s) {
     if (s.useCover && DemeanourCover(s) > 0.0f) return 1.0f;
     // In turn-based, moving costs AP; give the turn up when there is none.
     if (m_combatMode != 0 && e.ap < 1.0f) {
-        EndTurn();
+        EndTurnFor(s.entity);
         return 1.0f;
     }
     return MoveToward(s, gx, gz, true) ? 1.0f : 0.0f;
@@ -5419,7 +5481,7 @@ bool Scene::SentryThink(LiveEntity& e) {
     if (!e.isCombatant || e.dead || !e.weapon.valid) return false;
     if (e.moving || !e.action.empty()) return false;
     const int32_t self = static_cast<int32_t>(&e - m_entities.data());
-    if (m_combatMode != 0 && ActiveTurnEntity() != self) return false;
+    if (m_combatMode != 0 && !IsTurnActiveFor(self)) return false;
 
     const WeaponMode* mode = e.weapon.Mode();
     if (mode != nullptr && e.weapon.magazine > 0 && e.ammo < mode->ammoUsage) {
@@ -5478,13 +5540,13 @@ void Scene::AiThink(BaseAiState& s) {
     const bool turnBased = m_combatMode != 0;
     const int32_t self = s.entity;
     if (now >= s.nextPerceive ||
-        (turnBased && ActiveTurnEntity() == self)) {
+        (turnBased && IsTurnActiveFor(self))) {
         s.nextPerceive = now + static_cast<double>(kPerceiveInterval) +
                          static_cast<double>(m_rng.Range(0.0f, kPerceiveJitter));
         AiPerceive(s);
     }
     if (e.dead || !e.isCombatant) return;
-    if (turnBased && ActiveTurnEntity() != self) return;
+    if (turnBased && !IsTurnActiveFor(self)) return;
     // An animation in flight blocks the think -- except a walk or a run.
     // `BaseAI::BaseAIStopMovementIfHighestDesireSet @00519280` is exactly
     // that exception: with a desire raised it calls `StopMovement(true)` on
@@ -5506,14 +5568,14 @@ void Scene::AiThink(BaseAiState& s) {
             ControllerThink(s);
             // `World::StartNextCombatTurn @00507610` skips anyone who cannot
             // act, so an idle AI must not hold the queue up.
-            if (turnBased) EndTurn();
+            if (turnBased) EndTurnFor(self);
             return;
         }
     }
     // `GetCurrentAP() < 1` -> UpdateVehicleOverwatchAndEvadeBonus, i.e. go on
     // overwatch and stop thinking.  In turn-based that means ending the turn.
     if (e.ap < 1.0f) {
-        if (turnBased) EndTurn();
+        if (turnBased) EndTurnFor(self);
         return;
     }
 
@@ -5552,7 +5614,7 @@ void Scene::AiThink(BaseAiState& s) {
     }
     if (turnBased) {
         s.nextEngineThink = acted > 0.0f ? now + static_cast<double>(kThinkRateTurnBased) : now;
-        if (acted <= 0.0f && !e.moving) EndTurn();
+        if (acted <= 0.0f && !e.moving) EndTurnFor(self);
     }
 }
 
@@ -5571,7 +5633,7 @@ void Scene::AiTick() {
         // `DoEngineThink`'s turn-based tail sets `NextEngineThink = realtime`
         // for an entity that has not acted, so the queue's current entry is
         // never held up by its own think deadline.
-        const bool active = m_combatMode != 0 && ActiveTurnEntity() == s.entity;
+        const bool active = m_combatMode != 0 && IsTurnActiveFor(s.entity);
         if (!active && now < s.nextEngineThink) continue;
         AiThink(s);
     }
@@ -5873,7 +5935,7 @@ bool Scene::UseSkill(int32_t actor, const std::string& skill, int32_t target,
     // then costs you: "You cannot run and sneak at the same time."
     if (IEq(skill, "sneak")) {
         if (m_combatMode != 0) {
-            if (ActiveTurnEntity() != actor) {
+            if (!IsTurnActiveFor(actor)) {
                 say("Cannot perform that action.");
                 return false;
             }
@@ -5967,7 +6029,7 @@ bool Scene::UseSkill(int32_t actor, const std::string& skill, int32_t target,
     // AP.  `Actor::TryConsumeActionPointsForStance(skill)`; `use_code |= 8`,
     // `log_badAP`.
     if (m_combatMode != 0) {
-        if (ActiveTurnEntity() != actor) {
+        if (!IsTurnActiveFor(actor)) {
             say("Cannot perform that action.");
             return false;
         }
@@ -7202,7 +7264,7 @@ bool Scene::UseEntity(int32_t actor, int32_t target, std::string* whyNot, bool* 
     //    names.  `use_code |= 8`, `log_badAP`.
     const int32_t cost = ActionTypeCost(ground ? "pickup" : "activate");
     if (m_combatMode != 0) {
-        if (ActiveTurnEntity() != actor) return fail("not this entity's turn");
+        if (!IsTurnActiveFor(actor)) return fail("not this entity's turn");
         if (a.ap < static_cast<float>(cost)) return fail("Not enough action points.");
     }
 

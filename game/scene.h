@@ -594,11 +594,23 @@ public:
     // Weapon::SetNextWeaponMode @005da0d0 -- cycle single/burst.
     bool SetWeaponMode(int32_t index, const std::string& modeName);
     // Turn-based.  `World+0x427` is 0 continuous, 1 individual, 2 squad;
-    // `World::StartCombat @00506b40` picks 1 or 2 from the campaign setting and
-    // `World::EndCombatAndGrantSquadXP @00506fe0` puts it back to 0.
-    void SetTurnBased(bool on);
+    // `AdvanceCombatTurnPhase @00506b30` (the original's StartCombat) picks 1
+    // or 2 from `{game.turnBasedSingle}` and `World::EndCombatAndGrantSquadXP
+    // @00506fe0` puts it back to 0.  `mode` 1 or 2 overrides the setting.
+    void SetTurnBasedSetting(int32_t setting) { m_turnBasedSetting = setting; }
+    void SetTurnBased(bool on, int32_t mode = 0);
     bool TurnBased() const { return m_combatMode != 0; }
+    int32_t CombatMode() const { return m_combatMode; }
+    // `squadEndTurn`: `StartNextCombatTurn @00507610`, the whole entry.
     void EndTurn();
+    // `characterEndTurn`: `AdvanceCombatTurnWithOverwatch @005072c0`, one
+    // member; the entry ends once none of its members is left to act.
+    void EndTurnFor(int32_t index);
+    // `IsEntityUsableThisTurn @00507270`: a member of the current entry that
+    // hasn't ended its turn.
+    bool IsTurnActiveFor(int32_t index) const;
+    // Whether the current entry is the human player's.
+    bool PlayersTurn() const;
     int32_t ActiveTurnEntity() const;
     const std::vector<int32_t>& TurnOrder() const { return m_turnQueue; }
     // The console line, newest last.  `CombatMessage` has no UI yet.
@@ -1124,7 +1136,7 @@ private:
     bool MoveToward(BaseAiState& s, float wx, float wz, bool run);
     float EntityLightLevel(const LiveEntity& e) const;
     void RebuildTurnQueue();
-    void BeginTurnFor(int32_t index);
+    void BeginTurnFor(int32_t entry);
     void Logf(const char* fmt, ...);
     float FrameMoveDistance(const LiveEntity& e) const;
     void BakeEntity(LiveEntity& e);
@@ -1216,9 +1228,12 @@ private:
     // milestone 8
     Rng m_rng{1};
     int32_t m_combatMode = 0;              // World+0x427
-    std::vector<int32_t> m_turnQueue;      // World+0x42C, ordered by the key below
+    std::vector<int32_t> m_turnQueue;      // World+0x42C: each entry's first member
+    std::vector<std::vector<int32_t>> m_turnMembers;  // each entry's members
     std::vector<float> m_turnKey;          // TurnQueueEntry::RecomputeOrderKey
     size_t m_turnAt = 0;                   // World+0x43C
+    std::vector<int32_t> m_turnDone;       // the current entry's members who ended
+    int32_t m_turnBasedSetting = 0;        // {game.turnBasedSingle}, World+0x78D
     int64_t m_round = 0;
     std::vector<std::string> m_log;
     std::vector<Decal> m_decals;
