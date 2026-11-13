@@ -88,6 +88,7 @@
 #ifndef GAME_MOVE_H
 #define GAME_MOVE_H
 
+#include <cstddef>
 #include <cstdint>
 #include <vector>
 
