@@ -105,7 +105,9 @@ These are the game's own bindings, taken from its `help.txt` and `keys.cfg`. `fo
 | I, S, C, P, M | Inventory, skilldex, character, Pip-Boy, map |
 | Q, A, Z | Stand, crouch, prone |
 | W, R, Y, U | Stop, reload, weapon mode, swap hands |
-| Backspace | End turn |
+| Return | Turn-based on; off again on your own turn. Starting it from real time gives squad mode unless `bos.cfg`'s `game.turnBasedSingle` is 1 (individual) |
+| Backspace | End the selected members' turns |
+| Ctrl + Space | End the squad's turn |
 | `,` `.` `/` | Sentry off, scout, on |
 | 1–8 | Skills: sneak, lockpick, steal, traps, first aid, doctor, science, repair |
 | Escape | Menu |
@@ -120,16 +122,12 @@ Two bindings are ours, not the game's:
 
 These `keys.cfg` bindings aren't implemented yet:
 
-- Return: turn-based on or off;
-- Ctrl + Space: end the squad's turn;
 - T: targeted shot;
 - F: formation;
 - O, H and Tab: options, help and scores;
 - the save, load, quick-save and quick-load keys;
 - Pause;
 - the minimap keys, the rotate keys and the use-hand keys.
-
-For now, turn-based play is available only through `--turnbased`.
 
 ### Options
 
@@ -216,7 +214,7 @@ Some values need explaining:
 | `--posture-at N:i,Stand\|Crouch\|Prone` | Change entity i's stance. |
 | `--attack N:i` | The selection attacks entity i. |
 | `--mode N:<mode>` | Pick the active weapon mode by name, such as `single` or `burst`. |
-| `--turnbased N:on\|off`, `--endturn N:1` | Switch turn-based mode; end the active turn. |
+| `--turnbased N:on\|off\|individual\|squad`, `--endturn N:1` | Switch turn-based mode (`on` picks the mode as Return does); end the active turn. |
 | `--seed-at N:S` | Reseed the combat random number generator. |
 | `--use N:i` | The selection uses entity i. |
 | `--talk N:i` | Talk to entity i. |
