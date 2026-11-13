@@ -280,7 +280,6 @@ Each of these was checked against the current code.
 | **A turn-based key.** Bind Return as the game does, and support squad mode as well as individual mode. | the `Tick` key handling in `game/main.cpp`; `Scene::SetTurnBased` | `World::StartCombat@00506b40` | Play a fight both ways. |
 | **The unported trigger conditions and quantity kinds** listed under [Mission scripting gaps](#mission-scripting-gaps). | `MissionScript::EvaluateCondition`, `MissionScript::Quantity` | `EvaluateEntityQuantityCondition@004e0e20` and the condition classes | `--triggers` and `--script-log` on the tutorial maps. |
 | **Squad levelling** with the recovered experience ladder and level-up grant. | `HarvestRosterFromScene` in `game/main.cpp`; `LevelForExperience` in `game/combat.cpp` | `GetLevelForXPAmount@00607950`, `Attributes::CheckLevelUpAndGiveStatGainIfSo@00607b30` | Compare a squad member's sheet with the original after a mission. |
-| **difftest tooling.** `compare.py` looks for the binary in `game/` and resolves `FOT_ASSETS` against two different working directories. | `difftest/compare.py` | none | Run it against a recorded session. |
 
 ### Bigger items
 

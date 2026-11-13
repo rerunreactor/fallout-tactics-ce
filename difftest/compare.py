@@ -57,10 +57,21 @@ import sys
 from collections import defaultdict
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-GAME_DIR = os.path.abspath(os.path.join(HERE, "..", "game"))
-# The `core` folder of your own Fallout Tactics install.
-ASSETS = os.environ.get("FOT_ASSETS", "core")
+REPO = os.path.abspath(os.path.join(HERE, ".."))
+# The `core` folder of your own Fallout Tactics install.  Made absolute against
+# the caller's working directory, so the weapon-name map and fotgame read the
+# same folder.
+ASSETS = os.path.abspath(os.environ.get("FOT_ASSETS", "core"))
 FIELD = re.compile(r"(\w+)=(\S+)")
+EXE = ".exe" if os.name == "nt" else ""
+# Where a build leaves fotgame, tried in order: CMake's single-configuration
+# layout, its per-configuration one (Visual Studio, Xcode), and the old
+# `make native` layout.  --fotgame overrides them.
+FOTGAME_PLACES = [os.path.join(REPO, "build", "bin", "fotgame" + EXE)] + [
+    os.path.join(REPO, "build", "bin", cfg, "fotgame" + EXE)
+    for cfg in ("Release", "RelWithDebInfo", "Debug")
+] + [os.path.join(REPO, "game", "fotgame" + EXE)]
+FOTGAME = None
 
 DEFAULT_MISSION = "campaigns/missions/core/mission01.mis"
 # Mick, Farsight and Stitch: the campaign squad the player had, so that a HIT
@@ -117,11 +128,21 @@ def record_gap(rec):
 
 # ------------------------------------------------------- the port's side
 
+def find_fotgame(explicit):
+    if explicit:
+        if not os.path.isfile(explicit):
+            sys.exit("--fotgame: no such file: %s" % explicit)
+        return os.path.abspath(explicit)
+    for exe in FOTGAME_PLACES:
+        if os.path.isfile(exe):
+            return exe
+    sys.exit("fotgame is not built.  Looked in:\n  %s\nBuild it with "
+             "`cmake -S . -B build && cmake --build build`, or pass --fotgame."
+             % "\n  ".join(FOTGAME_PLACES))
+
+
 def fotgame(args):
-    exe = os.path.join(GAME_DIR, "fotgame")
-    if not os.path.exists(exe):
-        sys.exit("fotgame is not built: run `make native` in %s" % GAME_DIR)
-    r = subprocess.run([exe] + args, cwd=GAME_DIR, capture_output=True, text=True)
+    r = subprocess.run([FOTGAME] + args, capture_output=True, text=True)
     return r.stdout + r.stderr
 
 
@@ -591,9 +612,14 @@ def main():
                          "applies to the player's own shots.  The default, "
                          "`auto`, takes it from the session's own DIFF record "
                          "and falls back to normal when there is none.")
+    ap.add_argument("--fotgame", metavar="PATH",
+                    help="the fotgame binary to replay through.  By default, "
+                         "the first of build/bin/fotgame, build/bin/<config>/"
+                         "fotgame and game/fotgame that exists.")
     a = ap.parse_args()
-    global DIFFICULTY
+    global DIFFICULTY, FOTGAME
     DIFFICULTY = a.difficulty
+    FOTGAME = find_fotgame(a.fotgame)
 
     header, records = parse_log(a.log)
     # MILESTONE 25.  The session records its own difficulty now: fotlog.lua's

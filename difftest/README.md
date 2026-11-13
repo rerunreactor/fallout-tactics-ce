@@ -125,13 +125,8 @@ FOT_ASSETS="/path/to/Fallout Tactics/core" python3 difftest/compare.py session-2
 
 ### Setup
 
-- **`compare.py` runs `game/fotgame`**, relative to the repository, with `game/` as the working directory. With a CMake build, link or copy the binary there:
-
-  ```sh
-  ln -s ../build/bin/fotgame game/fotgame
-  ```
-
-- **Give `FOT_ASSETS` as an absolute path.** The default, `core`, is resolved both from `game/` and from your own working directory.
+- **`compare.py` finds `fotgame` in your CMake build:** the first of `build/bin/fotgame`, `build/bin/Release/fotgame` (or another configuration's folder) and the old `game/fotgame`. Elsewhere, pass `--fotgame <path>`.
+- **`FOT_ASSETS` is resolved from your own working directory.** The default is `core`.
 - **The weapon-name map reads `locale/game/items.txt` directly from `FOT_ASSETS`.** A 1.27 install has it as a loose file. If yours doesn't, extract it from `locale_0.bos` into the same place.
 
 ### Options
@@ -143,6 +138,7 @@ FOT_ASSETS="/path/to/Fallout Tactics/core" python3 difftest/compare.py session-2
 | `--difficulty <d>` | `auto` | Read it from the session's `DIFF` record. Otherwise `0`–`4`, `easy`, `normal`, `hard`, or a multiplier. |
 | `--limit N` | 24 | How many `HIT` groups to replay. |
 | `--min-count N` | 3 | The smallest group worth replaying. |
+| `--fotgame <path>` | the build's own | The `fotgame` binary to replay through. |
 
 ### Output
 
@@ -188,7 +184,6 @@ Three sessions were analysed, all on the first mission. They were recorded on Wi
 
 ## Known issues
 
-- **`compare.py` assumes the old build layout and two working directories.** See [Setup](#setup).
 - **Wine instability.** See [Recording under Wine](#recording-under-wine).
 
 ## Changing the logger
