@@ -778,8 +778,20 @@ bool MissionScript::EvaluateCondition(Scene& scene, const ScriptObj& c) {
         return true;
     }
 
-    // Not ported: Right Click on Tab, Weapon Mode Equals, World Play Mode
-    // Equals, Multiplayer Map Restart.  None of the shipped missions uses them.
+    if (c.cls == "World mode of play is") {
+        // World Play Mode Equals, registered under this name
+        // (`ConditionWorldPlayModeEquals::virt6 @00692ed0`).
+        // `ConditionWorldPlayModeEquals::Evaluate @00692fa0`: "CTB" holds in
+        // continuous play (World+0x427 is 0) and "TB" in either turn-based
+        // mode (1 or 2).  Its Serialize @00693160 defaults "WorldMode" to
+        // "TB".
+        std::string mode = c.Str("WorldMode");
+        if (mode.empty()) mode = "TB";
+        return scene.TurnBased() ? mode == "TB" : mode == "CTB";
+    }
+
+    // Not ported: Right Click on Tab, Weapon Mode Equals, Multiplayer Map
+    // Restart.  None of the shipped missions uses them.
     return false;
 }
 
