@@ -611,10 +611,18 @@ void Scene::ResolveEntities() {
                 proto->block.esh.GetString(name, out);
             }
         };
-        if (inst.className == "Switch") {
+        if (inst.className == "Switch" || inst.className == "ScienceSwitch") {
             // EntityStreamStruct::Serialize @005bc660.
             instOrProto("Key TagName", &e.keyTag);
             instOrProto("Sound Type", &e.useSound);
+        }
+        if (inst.className == "ScienceSwitch") {
+            // EntityStreamStruct::Serialize @005ba720 writes "Science
+            // Difficulty" (ScienceSwitch+0x1ac), default 0, before Switch's.
+            // Mission 25's consoles set it on the map, from -50 to 75.
+            if (!inst.esh.GetInt("Science Difficulty", &e.scienceDifficulty) && proto != nullptr) {
+                proto->block.esh.GetInt("Science Difficulty", &e.scienceDifficulty);
+            }
         }
         inst.esh.GetBool("Broken", &e.broken);
         // MILESTONE 18: the two speech-node names an entity carries in the
@@ -6257,8 +6265,16 @@ bool Scene::UseSkill(int32_t actor, const std::string& skill, int32_t target,
 
     // ----- SCIENCE: `ScienceSwitch::ApplySkillToTargetEntity @005baac0` -----
     if (IEq(skill, "science")) {
-        const bool isConsole = IEq(t.className, "ScienceSwitch") ||
-                               IEq(t.className, "Computer");
+        if (IEq(t.className, "ScienceSwitch")) {
+            // It hands the use to MaybeUseEntity with the skill flag set,
+            // and the roll happens there.
+            std::string why;
+            const bool ok = UseScienceSwitch(actor, target, true, chance, &why);
+            say(ok ? "Console activated." : why);                     // log_usedScience
+            Logf("%s", msg.c_str());
+            return ok;
+        }
+        const bool isConsole = IEq(t.className, "Computer");
         if (!isConsole) {
             // `log_thingNeedsScience` / `log_needsScience` are what the game
             // says about something that is not a console.
@@ -7319,9 +7335,10 @@ bool Scene::UseEntity(int32_t actor, int32_t target, std::string* whyNot, bool* 
     const bool corpse = t.isCombatant && t.dead;
     const bool container = t.isContainer;
     const bool ground = t.isCollectable;
-    // `Usable::CanBeActivated` is true.  Of the Usable classes, Switch and
-    // Alarm are ported.
-    const bool usable = t.className == "Switch" || t.className == "Alarm";
+    // `Usable::CanBeActivated` is true.  Of the Usable classes, Switch,
+    // ScienceSwitch and Alarm are ported.
+    const bool usable = t.className == "Switch" || t.className == "ScienceSwitch" ||
+                        t.className == "Alarm";
     if (!corpse && !container && !ground && !t.isDoor && !usable) {
         // `Entity::CanBeActivated` false: `use_code |= 0x40`.
         return fail("That does nothing.");
@@ -7361,8 +7378,11 @@ bool Scene::UseEntity(int32_t actor, int32_t target, std::string* whyNot, bool* 
         // `Actor::TryConsumeActionPointsForStance` runs before the target's
         // MaybeUseEntity, so a use the target refuses still costs the AP.
         if (m_combatMode != 0) a.ap -= static_cast<float>(cost);
-        return t.className == "Switch" ? UseSwitch(actor, target, whyNot)
-                                       : UseAlarm(actor, target, whyNot);
+        if (t.className == "Switch") return UseSwitch(actor, target, whyNot);
+        if (t.className == "ScienceSwitch") {
+            return UseScienceSwitch(actor, target, false, 0, whyNot);
+        }
+        return UseAlarm(actor, target, whyNot);
     }
 
     if (t.isDoor && !container) {
@@ -7553,9 +7573,17 @@ bool Scene::UseSwitch(int32_t actor, int32_t target, std::string* whyNot) {
             if (o.raceType.rfind("GunTurret", 0) == 0) o.activeState = !o.activeState;
         } else if (o.className == "Alarm") {
             UseAlarm(actor, static_cast<int32_t>(i), nullptr);
+        } else if (o.className == "StateScenary") {
+            // `StateScenary::MaybeUseEntity @005a6ef0`: used through a
+            // switch (`IsSwitch`), it flips its state and shows "default"
+            // when on, "off" when off.  Mission 25's generators share the
+            // tag of the science console that runs them.
+            o.activeState = !o.activeState;
+            o.action = o.activeState ? "default" : "off";
+            SetAnimationType(o, o.action);
         }
-        // Lights keep `Entity::MaybeUseEntity`, which does nothing, and no
-        // shipped switch shares its tag with any other class.
+        // Lights, and the classes not listed, keep `Entity::MaybeUseEntity`,
+        // which does nothing.
     }
     // A "Brain Extractor" switch also records the actor in the world
     // (World+0x513).  Nothing the port runs reads that, so it isn't kept.
@@ -7610,6 +7638,43 @@ bool Scene::UseAlarm(int32_t actor, int32_t target, std::string* whyNot) {
     // port doesn't model raising alarms.
     t.activeState = true;
     Logf("%s sets off %s.", a.ShownName().c_str(), t.label.c_str());
+    return true;
+}
+
+// `ScienceSwitch::MaybeUseEntity @005b9e30`.  A plain use only describes the
+// console.  The Science skill (`ScienceSwitch::ApplySkillToTargetEntity
+// @005baac0`) sets ScienceSwitch+0x1b0 around its own call to this, and that
+// flag, `bySkill` here, is what lets the use go on to the roll.
+bool Scene::UseScienceSwitch(int32_t actor, int32_t target, bool bySkill, int32_t chance,
+                             std::string* whyNot) {
+    auto fail = [&](const char* w) {
+        if (whyNot != nullptr) *whyNot = w;
+        return false;
+    };
+    LiveEntity& t = m_entities[static_cast<size_t>(target)];
+    // The same tag test Switch makes, before anything else: `use_code |= 0x40`.
+    if (t.tag.empty()) return fail("That does nothing.");
+    // `ScienceSwitch::IsLegalTarget @005bb040` is false once the console's
+    // animation is neither "default" nor "off", which is `log_brokenScience`
+    // ("Console is destroyed.").  The port can't destroy a console, so the
+    // test always passes.
+    if (!bySkill) return fail("A console full of dials and buttons.");   // log_needsScience
+    // `RollSkillUseCriticalChance @0060fd60` with the actor's science less
+    // the console's Science Difficulty.
+    if (!RollSkill(&m_rng, chance - t.scienceDifficulty).success) {
+        return fail("Failed to execute any commands through the console.");  // log_failedScience
+    }
+    // Then it is thrown as a Switch, which works everything sharing its tag.
+    // A refusal there (a missing key) is the answer.
+    if (!UseSwitch(actor, target, whyNot)) return false;
+    // `log_usedScience`.  The original then replays Switch's sound, which
+    // UseSwitch has just played, and shows "default" when on, "off" when
+    // off.  The shipped console sprites have only "default".  Turning off
+    // also destroys the entity ScienceSwitch+0x18f refers to, which the port
+    // doesn't model.  The experience it adds to the answer isn't granted;
+    // no skill here grants any yet.
+    t.action = t.activeState ? "default" : "off";
+    SetAnimationType(t, t.action);
     return true;
 }
 
