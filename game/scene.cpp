@@ -675,6 +675,16 @@ void Scene::ResolveEntities() {
             if (const Esh* s = esh("Sensor Range")) s->GetFloat("Sensor Range", &e.doorSensorRange);
             if (const Esh* s = esh("Auto Close")) s->GetBool("Auto Close", &e.doorAutoClose);
             if (const Esh* s = esh("Time Open")) s->GetInt("Time Open", &e.doorTimeOpenS);
+            // "Is Open" (Door+0x1a6): `Door::InitEntityAfterSpawn @005af2c0`
+            // starts such a door as "Opened", through DoorOpenStuff, which
+            // sets its activation state too.  Its sequence is applied below,
+            // once the sprite is in place.
+            bool open = false;
+            if (const Esh* s = esh("Is Open")) s->GetBool("Is Open", &open);
+            if (open) {
+                e.action = "Opened";
+                e.doorOpen = true;
+            }
         }
         for (int k = 0; k < 3; ++k) {
             e.world[k] = inst.world[k];
@@ -748,6 +758,16 @@ void Scene::ResolveEntities() {
             }
         }
         e.animates = realFrames > 1;
+        // A door that starts open shows its "Opened" sequence from the first
+        // frame, before any tick has run.
+        if (e.isDoor && e.doorOpen && ApplyAction(e)) {
+            for (const int16_t w : *e.table) {
+                if (w >= 0) {
+                    e.frame = w;
+                    break;
+                }
+            }
+        }
         // milestone 8: the character sheet, the equipped weapon and the armour.
         e.playerIndex = inst.playerIndex;
         if (e.isActor) {
