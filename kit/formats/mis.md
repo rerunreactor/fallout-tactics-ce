@@ -165,6 +165,7 @@ The integer world position is `round(position × 4)`.
   - For every entity whose matrix isn't the identity, the stored `animationRotation` matches the third row's angle. We tried 4, 8, 16 and 32 directions.
   - With eight directions, the first row (floats 0 and 2) matches none of them.
   - Some actors have an identity matrix and a non-zero `animationRotation`. Their facing comes from the property alone.
+- On load the property wins. `Entity::ClassType::Serialize@005e3450` clamps it to the sprite's direction count, then rebuilds the matrix from it (`BuildRotationMatrixFromAxisAngle@00717520`, about +Y), so the stored matrix never decides the facing.
 
 ### Prototype override
 

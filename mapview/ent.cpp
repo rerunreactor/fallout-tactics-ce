@@ -29,8 +29,6 @@ std::string Slashes(std::string s) {
     return s;
 }
 
-constexpr double kTwoPi = 6.283185307179586;
-
 }  // namespace
 
 const char* const kEntityColourNames[4] = {"Base", "Hair", "Skin", "Team"};
@@ -454,31 +452,18 @@ SpritePick PickSprite(const Sprite& sprite, const EntityInstance& inst) {
         pick.frame = 0;
     }
 
-    // Direction.  Entity_UpdateFacingFromVelocityAndBounds l.14343-14350:
-    //   dir = round(theta / 2pi * dirCount)
-    //   if (dir >= dirCount) dir -= dirCount;
-    //   if (dir >= dirCount) dir = 0;
-    // The angle is about +Y and the inverse used to rebuild the matrix is
-    // `angle = dir * 2pi / dirCount` (l.15487-15488).  The quantiser's own
-    // degenerate branch (l.14333-14340) fires on m02 == 0 and takes its
-    // +-pi/2 from the sign of m00, so the angle is atan2(m00, m02) -- x over
-    // z.  MILESTONE 13 corrected this from atan2(m02, m00); see game/NOTES.md
-    // section 63.
-    int32_t dir = 0;
-    if (inst.hasRotation) {
-        dir = inst.animationRotation;
-    } else if (inst.hasFrame) {
-        double theta = std::atan2(static_cast<double>(inst.rot[0]),
-                                  static_cast<double>(inst.rot[2]));
-        if (theta < 0.0) {
-            theta += kTwoPi;
-        }
-        dir = static_cast<int32_t>(
-            std::floor(theta / kTwoPi * static_cast<double>(col.dirCount) + 0.5));
-    }
+    // Direction.  On load, Entity::ClassType::Serialize@005e3450 clamps the
+    // stored `animationRotation` (0x5e3e7a-0x5e3e99), rebuilds the "frame"
+    // matrix from it with BuildRotationMatrixFromAxisAngle@00717520 about +Y at
+    // `dir * 2pi / dirCount`, and only then runs
+    // Entity_UpdateFacingFromVelocityAndBounds@005dfe90, which reads the angle
+    // back from the matrix's third row (Entity+0x8e, +0x96: floats 6 and 8).
+    // The property alone decides the facing, and a missing one is its default,
+    // 0.  The stored matrix is never consulted.
+    int32_t dir = inst.animationRotation;
     // The original's cheap modulo, reproduced including the second test --
     // which is what makes an out-of-range stored index collapse to 0 rather
-    // than wrap (l.15366-15373 does the same on load).
+    // than wrap.
     if (dir < 0) {
         dir = 0;
     }

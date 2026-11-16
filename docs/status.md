@@ -279,7 +279,6 @@ Each of these was checked against the current code.
 
 | Item | Where in our code | In the original | How to check |
 |---|---|---|---|
-| **Initial facing of map actors.** When an actor stores no `animationRotation`, `PickSprite` derives the facing from floats 0 and 2 of the `frame` matrix. The original's forward axis is the third row (floats 6 and 8), and the property's default is 0. In the 72 maps of `Mis-Main_0.bos`, the 47 actors without a stored rotation all have identity matrices, so we draw them at direction 2 instead of 0 (with eight directions). See [the format notes](../kit/formats/mis.md#facing). | `mapview/ent.cpp`, `PickSprite` | `Entity::Entity_UpdateFacingFromVelocityAndBounds@005e7080` | Render the first mission with `mapview` and compare idle actors with the original. |
 | **The other half of the difficulty term**, and reading `game.difficulty` from `bos.cfg`. | `Scene::ComputeHitChance`; the `bos.cfg` reader in `game/main.cpp` | `GetDifficultyModifierForAttackerTarget@0061b990` | difftest: the `DIFF` record, and HIT records where the player is the target. |
 | **Critical hits on burst shots.** | `Scene::ResolveBurst` | `RollCriticalHitChance@0060fdf0`, `ResolveBurstAttackTargets@00614ac0` | difftest `CRIT` and `ATTACK` records for burst fire. |
 | **A turn-based key.** Bind Return as the game does, and support squad mode as well as individual mode. | the `Tick` key handling in `game/main.cpp`; `Scene::SetTurnBased` | `World::StartCombat@00506b40` | Play a fight both ways. |

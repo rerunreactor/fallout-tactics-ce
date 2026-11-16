@@ -2208,9 +2208,10 @@ void Scene::SetFacingFromVector(LiveEntity& e, float dx, float dz) {
     //
     // The degenerate branch is what pins the argument order: it fires on
     // `m02 == 0` (the divisor) and takes its +-pi/2 from the *sign of m00*, so
-    // the angle is `atan2(m00, m02)` -- x over z, not z over x.  Row 0 of the
-    // basis `BuildOrientationBasisFromForward` writes at Entity+0x8e is the
-    // forward vector (m00 = fx at +0x8e, m02 = fz at +0x96), so
+    // the angle is `atan2(m00, m02)` -- x over z, not z over x.  Despite the
+    // names, those floats are at Entity+0x8e and +0x96: with the matrix at
+    // +0x76 they are floats 6 and 8, its third row, which is the forward vector
+    // `BuildOrientationBasisFromForward@00717860` writes (fx, fz), so
     //
     //     theta = atan2(dx, dz)
     //
