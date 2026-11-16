@@ -151,7 +151,6 @@ Differential-testing passes ran alongside milestones 22–25. Code comments tagg
 |---|---|---|
 | Light in the to-hit sum | Fixed at 1. | `TraceLightVisibilityToEntity` isn't ported. |
 | Vehicle, attacker-injury and targeting-computer to-hit terms | Not applied. | Recovered from the original, but not implemented. |
-| Difficulty | Set only by `--difficulty`, and applied only to shots by the player's squad. | The original reads `game.difficulty` from `bos.cfg`, and also adjusts shots *at* the player (`GetDifficultyModifierForAttackerTarget@0061b990`). |
 | Line of fire and cover | Walks the navigation grid, using tile flags (ethereal, window, cover, climbable) whose meanings come from the data. | The original uses a swept-box search through the map. |
 | Bursts | Shots are allotted with the original's rule. Each target that takes a hit rolls one critical, as the original does, using our single-shot critical chance with the target's capped burst chance. | Whether the mode's damage multiplier applies to burst rolls is still open, and the original's critical chance (`CalculateAttackApproachScore@0061c170`) isn't ported. |
 | Large and Huge bodies | Get nothing from worn armour. | Inferred: no armoured sprites exist for them. |
@@ -275,7 +274,6 @@ Each of these was checked against the current code.
 
 | Item | Where in our code | In the original | How to check |
 |---|---|---|---|
-| **The other half of the difficulty term**, and reading `game.difficulty` from `bos.cfg`. | `Scene::ComputeHitChance`; the `bos.cfg` reader in `game/main.cpp` | `GetDifficultyModifierForAttackerTarget@0061b990` | difftest: the `DIFF` record, and HIT records where the player is the target. |
 | **A turn-based key.** Bind Return as the game does, and support squad mode as well as individual mode. | the `Tick` key handling in `game/main.cpp`; `Scene::SetTurnBased` | `World::StartCombat@00506b40` | Play a fight both ways. |
 | **The unported trigger conditions and quantity kinds** listed under [Mission scripting gaps](#mission-scripting-gaps). | `MissionScript::EvaluateCondition`, `MissionScript::Quantity` | `EvaluateEntityQuantityCondition@004e0e20` and the condition classes | `--triggers` and `--script-log` on the tutorial maps. |
 
