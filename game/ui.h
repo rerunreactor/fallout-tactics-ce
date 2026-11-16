@@ -451,7 +451,8 @@ public:
     bool MouseUp(Scene* scene, int32_t x, int32_t y, bool right);
     // A keys.cfg action name: "inventory", "character", "pipboy", "skilldex",
     // "menu", "stand", "crouch", "prone", "reload", "cycleWeaponModes",
-    // "swapHands", "characterEndTurn/stop", "select1".."select6".
+    // "swapHands", "characterEndTurn/stop", "squadEndTurn",
+    // "shout/toggleTurnBased", "select1".."select6".
     bool Action(Scene* scene, const std::string& action);
 
     UiScreen Screen() const { return m_screen; }
