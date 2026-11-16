@@ -578,7 +578,9 @@ int32_t MissionScript::EntityByTag(Scene& scene, const std::string& tag) const {
 // rest log "Unknown quantity type" as the original does.  From Attribute on,
 // it sums each entity's own answer, `Actor::ScriptConditionCheckMaybe
 // @00577900` (vtable +0x7cc); every arm there but Reputation first requires
-// the actor to be in the condition's zone.
+// the actor to be in the condition's zone.  The dispatcher then divides the
+// sum by the size of the set whenever the name is "hitPoints", which the
+// shipped missions pair only with Attribute.
 int32_t MissionScript::Quantity(Scene& scene, const std::vector<int32_t>& set,
                                 const StringPair& type, const WorldZone* zone,
                                 bool inLocation) const {
@@ -588,7 +590,7 @@ int32_t MissionScript::Quantity(Scene& scene, const std::vector<int32_t>& set,
         const bool in = zone->Contains(e.wpos);
         return inLocation ? in : !in;
     };
-    int32_t n = 0, sum = 0, seen = 0;
+    int32_t n = 0, sum = 0;
     for (int32_t i : set) {
         const LiveEntity& e = es[static_cast<size_t>(i)];
         if (type.first == "Alive") {
@@ -619,16 +621,27 @@ int32_t MissionScript::Quantity(Scene& scene, const std::vector<int32_t>& set,
                    type.first == "Prone") {
             if (!e.dead && e.posture == type.first.substr(0, type.first.size() - 3)) ++n;
         } else if (type.first == "Attribute" || type.first == "DerivedStat") {
-            if (e.dead) continue;
-            ++seen;
-            if (type.second == "hitPoints") sum += e.hp;
-            else if (type.second == "actionPoints") sum += static_cast<int32_t>(e.ap);
+            // The Attribute arm answers "hitPoints" as a percentage of the
+            // actor's maximum (Actor+0xca6), truncated, and any other name
+            // as the value itself.  A dead actor answers too, with 0 hit
+            // points.
+            if (!inZone(e)) continue;
+            if (type.second == "hitPoints") {
+                if (e.maxHp > 0) {
+                    sum += static_cast<int32_t>(static_cast<double>(e.hp) / e.maxHp * 100.0);
+                }
+            } else if (type.second == "actionPoints") {
+                sum += static_cast<int32_t>(e.ap);
+            }
         } else {
             return 0;
         }
     }
     if (type.first == "Attribute" || type.first == "DerivedStat") {
-        return seen > 0 ? sum / seen : 0;
+        if (type.second == "hitPoints") {
+            return set.empty() ? 0 : sum / static_cast<int32_t>(set.size());
+        }
+        return sum;
     }
     return n;
 }
