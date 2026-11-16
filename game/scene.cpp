@@ -7671,8 +7671,9 @@ bool Scene::UseScienceSwitch(int32_t actor, int32_t target, bool bySkill, int32_
     // UseSwitch has just played, and shows "default" when on, "off" when
     // off.  The shipped console sprites have only "default".  Turning off
     // also destroys the entity ScienceSwitch+0x18f refers to, which the port
-    // doesn't model.  The experience it adds to the answer isn't granted;
-    // no skill here grants any yet.
+    // doesn't model.  It adds experience to the answer only when the
+    // console's `xpflag` (Entity+0x189) is set, which no shipped entity does
+    // (`Entity::InitDefaultEntityFields @005e0850` clears it).
     t.action = t.activeState ? "default" : "off";
     SetAnimationType(t, t.action);
     return true;

@@ -182,7 +182,7 @@ Differential-testing passes ran alongside milestones 22–25. Code comments tagg
   - A power node starts on and stays on until a script sets it, because the port keeps no power.
   - Using a switch turns it on or off, and also works the doors and gun turrets that share its tag. A door opened this way closes again once nobody is near, like every door here.
   - Using an alarm sets it off. Someone hostile to the alarm's side breaks it instead, and a broken alarm can't go off, even when a script sets it. What an alarm going off does to its side isn't modelled.
-  - A science console (`ScienceSwitch`) works only through the Science skill. A plain use just describes it. A successful roll, against the console's Science Difficulty, throws it like a switch. Mission 25's generators, which share their console's tag, turn on or off with it. The experience the original grants for it isn't given.
+  - A science console (`ScienceSwitch`) works only through the Science skill. A plain use just describes it. A successful roll, against the console's Science Difficulty, throws it like a switch. Mission 25's generators, which share their console's tag, turn on or off with it.
 
 ### Interface
 
