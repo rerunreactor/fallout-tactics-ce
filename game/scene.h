@@ -191,7 +191,16 @@ struct LiveEntity {
     // Doors.
     bool doorOpen = false;
     bool doorOutwards = false;
-    int64_t doorHoldUntilMs = 0;
+    // `Door::EntityStreamStruct::Serialize @005b1710`, with the defaults of
+    // `Door::InitDefaultEntityFields @005af200`: "Sensor Open" (Door+0x1b8)
+    // and "Sensor Range" (+0x1b9, in the units of `wpos`), "Auto Close"
+    // (+0x1ae) and "Time Open" (+0x1af, seconds).
+    bool doorSensor = false;
+    float doorSensorRange = 3.0f;
+    bool doorAutoClose = false;
+    int32_t doorTimeOpenS = 10;
+    // When an Auto Close door closes (Door+0x175), 0 for never.
+    int64_t doorCloseAtMs = 0;
 
     // --- milestone 8: combat -------------------------------------------
     bool isCombatant = false;

@@ -140,7 +140,7 @@ Differential-testing passes ran alongside milestones 22–25. Code comments tagg
 | Idle pauses | Actors breathe continuously. | The original pauses between idle cycles for a time we haven't recovered. |
 | What blocks movement | A tile blocks a cell if it rises more than 3 world units above it. | The original's occupancy test isn't recovered. |
 | Crowding | Searching for a free spot stops after 8 rings. An actor replans after 3 blocked ticks. Actors don't step aside for each other; they wait. | The original's limits, and its local avoidance, aren't recovered. |
-| Doors | A door opens when someone comes within 9 world units, and stays open 2 seconds. | The real radius and hold time aren't in the data we've read. |
+| Doors | A door with a sensor opens and closes with the original's Sensor Open and Sensor Range rule. An Auto Close door closes Time Open seconds after it opens. Any other door opens for a walker within 9 world units, and then stays open. | How the original takes a walker through a door without a sensor isn't recovered. Two details aren't recovered either: the check an Auto Close door makes before it closes, and the timing of the sensor's rechecks. |
 | Formations | The squad spawns on a ring of radius 6 world units around the spawn point. A group move spreads members over a fixed eight-slot ring. | `SpawnEntityGroupInFormation@004f5a10` and `ComputePlayerGroupCentroid@0049b770` aren't recovered. |
 | Animated tiles | One map-wide counter, one frame per tick. | Inferred from a sprite that plays the same frames, and from FreeFT. |
 | Smooth movement | Positions are interpolated between ticks. This is a port addition; `--no-interp` turns it off. | The original moves actors once per 70 ms tick and doesn't interpolate. |
@@ -180,7 +180,7 @@ Differential-testing passes ran alongside milestones 22–25. Code comments tagg
 - **Object script state.** Each object keeps its own on/off state, as the original does, and starts from its map record.
   - Setting it opens or closes a door. For lights, alarms, traps and turrets it only records the state; their own effects aren't modelled. A broken alarm ignores it.
   - A power node starts on and stays on until a script sets it, because the port keeps no power.
-  - Using a switch turns it on or off, and also works the doors and gun turrets that share its tag. A door opened this way closes again once nobody is near, like every door here.
+  - Using a switch turns it on or off, and also works the doors and gun turrets that share its tag. A door opened this way stays open, unless it has a sensor or Auto Close.
   - Using an alarm sets it off. Someone hostile to the alarm's side breaks it instead, and a broken alarm can't go off, even when a script sets it. What an alarm going off does to its side isn't modelled.
   - A science console (`ScienceSwitch`) works only through the Science skill. A plain use just describes it. A successful roll, against the console's Science Difficulty, throws it like a switch. Mission 25's generators, which share their console's tag, turn on or off with it.
 
