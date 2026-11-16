@@ -1616,6 +1616,7 @@ bool CampaignEnterMission(const std::string& misPath, int32_t coreIndex,
     g.sceneOwn = std::move(next);
     g.scenep = g.sceneOwn.get();
     g.scenep->SeedRng(g.camp.rng ? g.camp.rng : 1);
+    g.scenep->Script().SetCarriedReputation(g.camp.reputation);
     if (!restoring) ApplyRosterToScene();
     (void)extraSpawn;   // the encounter force is spawned by the map's own script
     g.camMission = misPath;
