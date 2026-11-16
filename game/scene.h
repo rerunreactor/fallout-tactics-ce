@@ -218,6 +218,9 @@ struct LiveEntity {
     // `Switch::MaybeUseEntity` wants carried, and its "Sound Type"
     // (Entity+0x156), which `Switch::SoundRelated1` builds its sound from.
     std::string keyTag, useSound;
+    // A ScienceSwitch's "Science Difficulty" (ScienceSwitch+0x1ac), which
+    // the Science roll subtracts.
+    int32_t scienceDifficulty = 0;
     // The "Broken" property, `Entity::IsBroken` (Entity+0x18a).  A hostile
     // actor who uses an alarm breaks it, and a broken alarm can't go off.
     bool broken = false;
@@ -733,10 +736,15 @@ public:
     // message the original would have shown.  `openedLoot` is set when the
     // call put a loot window up.
     bool UseEntity(int32_t actor, int32_t target, std::string* whyNot, bool* openedLoot);
-    // The target halves of UseEntity for the two usable classes ported:
-    // `Switch::MaybeUseEntity @005bbed0` and `Alarm::MaybeUseEntity @005aa560`.
+    // The target halves of UseEntity for the usable classes ported:
+    // `Switch::MaybeUseEntity @005bbed0`, `Alarm::MaybeUseEntity @005aa560`
+    // and `ScienceSwitch::MaybeUseEntity @005b9e30`.  A science console
+    // works only through the Science skill, which passes `bySkill` and the
+    // actor's skill as `chance`.
     bool UseSwitch(int32_t actor, int32_t target, std::string* whyNot);
     bool UseAlarm(int32_t actor, int32_t target, std::string* whyNot);
+    bool UseScienceSwitch(int32_t actor, int32_t target, bool bySkill, int32_t chance,
+                          std::string* whyNot);
     // `Actor::ContainsItemWithTagName` or `PlayerEquippedItemWithTagName`:
     // whether the actor has the key a locked container or a switch asks for.
     bool HasItemTagged(const LiveEntity& a, const std::string& tag) const;
