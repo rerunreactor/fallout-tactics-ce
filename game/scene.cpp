@@ -663,6 +663,18 @@ void Scene::ResolveEntities() {
         if (e.isDoor) {
             e.action = "Closed";
             e.doorOpen = false;
+            // The map instance's value, else the `.ent`'s, else the default.
+            auto esh = [&](const char* name) -> const Esh* {
+                if (inst.esh.Find(name) != nullptr) return &inst.esh;
+                if (proto != nullptr && proto->block.esh.Find(name) != nullptr) {
+                    return &proto->block.esh;
+                }
+                return nullptr;
+            };
+            if (const Esh* s = esh("Sensor Open")) s->GetBool("Sensor Open", &e.doorSensor);
+            if (const Esh* s = esh("Sensor Range")) s->GetFloat("Sensor Range", &e.doorSensorRange);
+            if (const Esh* s = esh("Auto Close")) s->GetBool("Auto Close", &e.doorAutoClose);
+            if (const Esh* s = esh("Time Open")) s->GetInt("Time Open", &e.doorTimeOpenS);
         }
         for (int k = 0; k < 3; ++k) {
             e.world[k] = inst.world[k];
@@ -1125,6 +1137,11 @@ void Scene::FinishedAnimationSequence(LiveEntity& e) {
     if (e.isDoor) {
         if (e.action == "Opening") {
             SetDoorState(e, "Opened");
+            // An Auto Close door schedules its game think Time Open seconds
+            // on (`Door+0x175 = now + timeopen * 1000`).
+            if (e.doorAutoClose) {
+                e.doorCloseAtMs = m_ticks * kTickMs + static_cast<int64_t>(e.doorTimeOpenS) * 1000;
+            }
             return;
         }
         if (e.action == "Closing") {
@@ -1934,17 +1951,12 @@ constexpr float kWorldToMetres = 1.0f / kEntityWorldScale;
 // is 1 here.  PLACEHOLDER.
 constexpr float kMaxMovementSpeed = 1.0f;
 
-// `Door+0x1b9`, the proximity radius Door_UpdateProximityAutoOpenTimer compares
-// against.  The property that fills it is not in any
-// Door serializer in the dumps and no shipped door `.ent` writes it, so this is
-// a PLACEHOLDER: one and a half tiles, which is about an arm's length past the
-// door leaf once the two half-extents are subtracted.
+// The reach at which a walker opens a door that has no sensor.  How the
+// original gets a walker through such a door isn't recovered, so this is a
+// PLACEHOLDER: one and a half tiles, which is about an arm's length past the
+// door leaf once the two half-extents are subtracted.  A sensor door uses
+// its own "Sensor Range" instead.
 constexpr float kDoorOpenRadius = 9.0f * kWorldToMetres;
-
-// How long an auto-opened door stays open once nothing is near it.  `Door::
-// FinishedAnimationSequenceMaybe` reads `Door.timeopen` (`Door::FinishedAnimationSequenceMaybe@005b01c0`
-// l.18786) and that property is not in the dumps either.  PLACEHOLDER.
-constexpr int64_t kDoorHoldMs = 2000;
 
 }  // namespace
 
@@ -2619,12 +2631,23 @@ void Scene::SetDoorState(LiveEntity& e, const std::string& state) {
     ApplyAction(e);
 }
 
-// `Door::Door_UpdateProximityAutoOpenTimer @005b28f0`:
-// distance from the door to the nearest entity, minus half the summed x+z
-// extents of the two boxes, against the radius at Door+0x1b9.
+// How a door opens and closes by itself.
+//  - A door with "Sensor Open" runs `Door::Door_UpdateProximityAutoOpenTimer
+//    @005b2b60` from `Door::DoEngineThink @005b00b0`: unless it is locked,
+//    it opens while something is within "Sensor Range" (the distance less
+//    half the two boxes' summed x+z extents) and closes when nothing is.
+//    The port has no door locks.  The original rechecks on a timer that
+//    grows with the distance; this checks every tick.
+//  - PORT ADDITION: a door without a sensor opens for a walker within
+//    kDoorOpenRadius, so the squad can get through.  It stays open.
+//  - An "Auto Close" door closes Time Open seconds after it opened
+//    (`Door::DoGameThink @005b0100`).  The original first asks `Door+0x738`,
+//    whose body isn't ported; RECONSTRUCTION: it stays open while someone is
+//    within reach.  Either way the timer is spent.
 void Scene::DoorThink(LiveEntity& e) {
     const float doorHalf =
         static_cast<float>(e.bbox[0] + e.bbox[2]) * 0.5f * kWorldToMetres * 0.5f;
+    const float radius = e.doorSensor ? e.doorSensorRange : kDoorOpenRadius;
     bool near = false;
     for (const LiveEntity& a : m_entities) {
         if (!a.isActor) {
@@ -2639,19 +2662,21 @@ void Scene::DoorThink(LiveEntity& e) {
         if (d < 0.0f) {
             d = 0.0f;
         }
-        if (d <= kDoorOpenRadius) {
+        if (d <= radius) {
             near = true;
             break;
         }
     }
-    const int64_t now = m_ticks * kTickMs;
-    if (near) {
-        e.doorHoldUntilMs = now + kDoorHoldMs;
-        if (e.action == "Closed" || e.action == "Closing" || e.action.empty()) {
-            SetDoorState(e, "Opening");
-        }
-    } else if ((e.action == "Opened" || e.action == "Opening") && now >= e.doorHoldUntilMs) {
+    const bool closed = e.action == "Closed" || e.action == "Closing" || e.action.empty();
+    if (near && closed) {
+        SetDoorState(e, "Opening");
+    } else if (!near && !closed && e.doorSensor) {
         SetDoorState(e, "Closing");
+    }
+    const int64_t now = m_ticks * kTickMs;
+    if (e.doorCloseAtMs > 0 && now >= e.doorCloseAtMs) {
+        e.doorCloseAtMs = 0;
+        if (e.doorAutoClose && e.action == "Opened" && !near) SetDoorState(e, "Closing");
     }
 }
 
@@ -7561,10 +7586,7 @@ bool Scene::UseSwitch(int32_t actor, int32_t target, std::string* whyNot) {
         if (o.isDoor) {
             // `Door::MaybeUseEntity @005af330`: through a switch, reach is
             // not tested and a locked door unlocks; then it opens or closes.
-            // The port has no door locks.  RECONSTRUCTION: its doors also
-            // close once nobody is near (DoorThink), so one the switch opens
-            // gets the same hold an approach gives it.
-            if (!o.doorOpen) o.doorHoldUntilMs = m_ticks * kTickMs + kDoorHoldMs;
+            // The port has no door locks.
             SetDoorState(o, o.doorOpen ? "Closing" : "Opening");
         } else if (o.className == "Actor") {
             // `Actor::MaybeUseEntity @0057d5e0`: a gun turret used through a
