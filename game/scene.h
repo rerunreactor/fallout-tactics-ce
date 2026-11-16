@@ -199,6 +199,9 @@ struct LiveEntity {
     float doorSensorRange = 3.0f;
     bool doorAutoClose = false;
     int32_t doorTimeOpenS = 10;
+    // "Laser Door" (Door+0x1be).  `Door::IsValidTargetForSkill @005b2100`
+    // refuses Lockpick on one.
+    bool doorLaser = false;
     // When an Auto Close door closes (Door+0x175), 0 for never.
     int64_t doorCloseAtMs = 0;
 
@@ -226,6 +229,7 @@ struct LiveEntity {
     // A Switch's "Key TagName" (Switch+0x1a7), the item tag
     // `Switch::MaybeUseEntity` wants carried, and its "Sound Type"
     // (Entity+0x156), which `Switch::SoundRelated1` builds its sound from.
+    // A Door's "Type of sounds" (Door+0x1b4) is kept in `useSound` too.
     std::string keyTag, useSound;
     // A ScienceSwitch's "Science Difficulty" (ScienceSwitch+0x1ac), which
     // the Science roll subtracts.
@@ -357,6 +361,8 @@ struct LiveEntity {
     // Brahmin Wood's one locked chest has `Is Locked = True`,
     // `Is Lockable = True`, `Chance to Unlock = 10` and NO Tag Name, i.e. no
     // key exists for it and picking is the only way in.
+    // A Door keeps its lock in the same three fields: Door+0x1a8, +0x1a9 and
+    // +0x1aa.
     bool isLockable = false;
     int32_t unlockChance = 0;
     // `Trap` -- `Trap::ApplySkillToTargetEntity @005cfcf0` / `IsValidTargetForSkill
@@ -848,6 +854,10 @@ public:
     // ActionObjectScriptState: `SetActivationState` (vtable +0x7d4) on every
     // entity carrying `tag`.  Returns how many carry it.
     int32_t ScriptSetActivationState(const std::string& tag, bool on);
+    // ActionLockDoor: `SetLockedState` (vtable +0x7e0) on every entity
+    // carrying `tag`.  Only a Door overrides it.  Returns how many doors
+    // carry the tag.
+    int32_t ScriptLockDoors(const std::string& tag, bool locked);
     // ActionKillEntity.
     bool ScriptKill(int32_t index);
     // ActionChangePlayer.
@@ -1118,6 +1128,9 @@ private:
     void DoorThink(LiveEntity& e);
     bool VehicleStep(LiveEntity& e);
     void SetDoorState(LiveEntity& e, const std::string& state);
+    // `Door::SoundRelated1 @005b0850` for its three lock sounds.
+    enum class DoorLockSound { kRattle, kUnlocked, kPicked };
+    void PlayDoorLockSound(const LiveEntity& e, DoorLockSound which);
     // MILESTONE 17: `Inventory::AddToInventory @005b4030` plus
     // `Collectable::MergeEntities @005c1910` -- an identical stack merges.
     void AddToInventory(LiveEntity& e, const LiveEntity::InvItem& item);

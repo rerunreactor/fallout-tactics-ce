@@ -685,6 +685,22 @@ void Scene::ResolveEntities() {
                 e.action = "Opened";
                 e.doorOpen = true;
             }
+            // The lock: "Is Locked" (Door+0x1a8), "Is Lockable" (+0x1a9) and
+            // "Chance to Unlock" (+0x1aa), all clear by default
+            // (`Door::InitDefaultEntityFields @005af200`).  The shipped maps
+            // lock 174 doors.  112 of them have a Chance to Unlock of 0, which
+            // can't be picked: only a key, a switch or a script opens them.
+            if (const Esh* s = esh("Is Locked")) s->GetBool("Is Locked", &e.isLocked);
+            if (const Esh* s = esh("Is Lockable")) s->GetBool("Is Lockable", &e.isLockable);
+            if (const Esh* s = esh("Chance to Unlock")) {
+                s->GetInt("Chance to Unlock", &e.unlockChance);
+            }
+            if (const Esh* s = esh("Laser Door")) s->GetBool("Laser Door", &e.doorLaser);
+            if (const Esh* s = esh("Type of sounds")) s->GetString("Type of sounds", &e.useSound);
+            // The `.ent`'s Display Name, "Door" for every shipped door, so
+            // that the lock messages name it by `name_Door` rather than by
+            // its tag.
+            e.displayName = inst.displayName;
         }
         for (int k = 0; k < 3; ++k) {
             e.world[k] = inst.world[k];
@@ -2198,16 +2214,20 @@ void Scene::RefreshDynamicBlockers() {
     std::fill(m_nav.dyn.begin(), m_nav.dyn.end(), 0);
     for (const LiveEntity& e : m_entities) {
         if (e.isDoor) {
-            // A door does not block a path.  `RotatingDoor::CanDoorOpen
-            // @005b8c40` is the gate Door::SetActivationState consults before
-            // opening, and the auto-open in
-            // Door_UpdateProximityAutoOpenTimer runs on approach, so an
-            // unlocked door is a passable cell that happens to play an
-            // animation as you reach it.  A LOCKED one would block -- but the
-            // lock state lives in `Door::IsValidTargetForSkill`'s lockpick
-            // fields and no shipped door `.ent` in
-            // mission01 writes them, so every door here is unlocked.
-            // RECONSTRUCTION: doors never enter the blocker set.
+            // An unlocked door does not block a path: it opens as a walker
+            // reaches it (see DoorThink), so it is a passable cell that
+            // happens to play an animation.  A locked door that is closed
+            // opens for nobody, so its box blocks until it is unlocked, by the
+            // same height rule as any other blocker.  Where a cell's surface
+            // is a roof or a storey above the door, the door doesn't block
+            // there, and nor do the walls beside it.
+            // RECONSTRUCTION: the original's occupancy test isn't recovered.
+            if (e.isLocked && e.action == "Closed") {
+                const int32_t x0 = e.world[0] - e.bbox[0] / 2;
+                const int32_t z0 = e.world[2] - e.bbox[2] / 2;
+                m_nav.MarkBox(m_nav.dyn, x0, z0, x0 + std::max(1, e.bbox[0]),
+                              z0 + std::max(1, e.bbox[2]), e.world[1] + e.bbox[1]);
+            }
             continue;
         }
         if (!e.isActor) {
@@ -2651,15 +2671,36 @@ void Scene::SetDoorState(LiveEntity& e, const std::string& state) {
     ApplyAction(e);
 }
 
+// `Door::SoundRelated1 @005b0850` with 0, 1 and 2: "sound/game/" plus
+// lockRattle, lockUnlocked or lockPick, or their electronicLock... forms
+// for a door whose "Type of sounds" is powerDoor.
+void Scene::PlayDoorLockSound(const LiveEntity& e, DoorLockSound which) {
+    const bool power = Lower(e.useSound) == "powerdoor";
+    const char* name = nullptr;
+    switch (which) {
+    case DoorLockSound::kRattle:
+        name = power ? "electronicLockRattle" : "lockRattle";
+        break;
+    case DoorLockSound::kUnlocked:
+        name = power ? "electronicLockUnlocked" : "lockUnlocked";
+        break;
+    case DoorLockSound::kPicked:
+        name = power ? "electronicLockPick" : "lockPick";
+        break;
+    }
+    PlaySoundStem(e, std::string("sound/game/") + name, kChanDefault, "door lock");
+}
+
 // How a door opens and closes by itself.
 //  - A door with "Sensor Open" runs `Door::Door_UpdateProximityAutoOpenTimer
 //    @005b2b60` from `Door::DoEngineThink @005b00b0`: unless it is locked,
 //    it opens while something is within "Sensor Range" (the distance less
 //    half the two boxes' summed x+z extents) and closes when nothing is.
-//    The port has no door locks.  The original rechecks on a timer that
-//    grows with the distance; this checks every tick.
+//    The original rechecks on a timer that grows with the distance; this
+//    checks every tick.
 //  - PORT ADDITION: a door without a sensor opens for a walker within
-//    kDoorOpenRadius, so the squad can get through.  It stays open.
+//    kDoorOpenRadius, so the squad can get through.  It stays open.  A
+//    locked one doesn't, as with the sensor.
 //  - An "Auto Close" door closes Time Open seconds after it opened
 //    (`Door::DoGameThink @005b0100`).  The original first asks `Door+0x738`,
 //    whose body isn't ported; RECONSTRUCTION: it stays open while someone is
@@ -2688,7 +2729,9 @@ void Scene::DoorThink(LiveEntity& e) {
         }
     }
     const bool closed = e.action == "Closed" || e.action == "Closing" || e.action.empty();
-    if (near && closed) {
+    if (e.isLocked) {
+        // The proximity check returns at once for a locked door.
+    } else if (near && closed) {
         SetDoorState(e, "Opening");
     } else if (!near && !closed && e.doorSensor) {
         SetDoorState(e, "Closing");
@@ -3348,6 +3391,20 @@ int32_t Scene::ScriptSetActivationState(const std::string& tag, bool on) {
         // Containers (`Container::SetActivationState @005ad920`) and every
         // other class: no shipped script sets them, and the base class's
         // setter does nothing.
+    }
+    return count;
+}
+
+int32_t Scene::ScriptLockDoors(const std::string& tag, bool locked) {
+    // `ActionLockDoor::Vtable15 @00687160` collects every entity carrying the
+    // tag and calls SetLockedState on each.  `Door::SetLockedState @005b2b30`
+    // locks only a door that "Is Lockable", and unlocks any.  The base
+    // class's does nothing.
+    int32_t count = 0;
+    for (LiveEntity& e : m_entities) {
+        if (tag.empty() || e.tag != tag || !e.isDoor) continue;
+        ++count;
+        e.isLocked = locked && e.isLockable;
     }
     return count;
 }
@@ -6104,7 +6161,7 @@ bool Scene::UseSkill(int32_t actor, const std::string& skill, int32_t target,
     const bool isActorT = t.isCombatant;
     const bool isBox = t.isContainer || t.isDoor;
     bool legal = false;
-    if (IEq(skill, "lockpick")) legal = isBox;
+    if (IEq(skill, "lockpick")) legal = isBox && !(t.isDoor && t.doorLaser);
     else if (IEq(skill, "traps")) legal = isBox || t.isCollectable;
     else if (IEq(skill, "steal")) legal = isActorT && !t.dead;
     else if (IEq(skill, "firstAid") || IEq(skill, "doctor")) {
@@ -6188,7 +6245,16 @@ bool Scene::UseSkill(int32_t actor, const std::string& skill, int32_t target,
     }
 
     // ----- LOCKPICK: `Container::ApplySkillToTargetEntity @005ad3f0` --------
+    // and `Door::ApplySkillToTargetEntity @005b1c50`, which is the same apart
+    // from its sounds and its first test.
     if (IEq(skill, "lockpick")) {
+        // A door whose Chance to Unlock is 0 can't be picked at all: it
+        // rattles, and `use_code |= 0x40`.
+        if (t.isDoor && t.unlockChance == 0) {
+            PlayDoorLockSound(t, DoorLockSound::kRattle);
+            say("That does nothing.");
+            return false;
+        }
         // `chance = actor.lockpick - container.unlockchance` where
         // `unlockchance` is the `.ent`'s own `Chance to Unlock`.
         const int32_t diff = chance - t.unlockChance;
@@ -6199,21 +6265,23 @@ bool Scene::UseSkill(int32_t actor, const std::string& skill, int32_t target,
         }
         if (!r.success) {
             // `if (chance < 10) log_lockpickImpossible else log_lockpickFail`
-            say(diff < 10 ? a.ShownName() + " failed to pick the lock on the " + t.label +
-                                ". It seems very difficult."
-                          : a.ShownName() + " failed to pick the lock on the " + t.label + ".");
+            if (t.isDoor) PlayDoorLockSound(t, DoorLockSound::kRattle);
+            const std::string fail =
+                a.ShownName() + " failed to pick the lock on the " + t.ShownName() + ".";
+            say(diff < 10 ? fail + " It seems very difficult." : fail);
             Logf("%s", msg.c_str());
             return false;
         }
+        if (t.isDoor) PlayDoorLockSound(t, DoorLockSound::kPicked);
         if (!t.isLocked) {
             // A successful pick on an UNLOCKED container LOCKS it, and raises
             // its difficulty to `max(10, chance)`.
             t.isLocked = true;
             t.unlockChance = std::max(10, diff);
-            say(a.ShownName() + " locked the " + t.label + ".");
+            say(a.ShownName() + " locked the " + t.ShownName() + ".");
         } else {
             t.isLocked = false;
-            say(a.ShownName() + " unlocked the " + t.label + ".");
+            say(a.ShownName() + " unlocked the " + t.ShownName() + ".");
         }
         Logf("%s", msg.c_str());
         return true;
@@ -7431,7 +7499,29 @@ bool Scene::UseEntity(int32_t actor, int32_t target, std::string* whyNot, bool* 
     }
 
     if (t.isDoor && !container) {
+        // As for a usable, the AP are spent before the door's MaybeUseEntity,
+        // so a locked door still costs them.
         if (m_combatMode != 0) a.ap -= static_cast<float>(cost);
+        // `Door::MaybeUseEntity @005af330`.  A closed, locked door with a Tag
+        // Name unlocks for an actor who carries or has equipped an item with
+        // that tag, its key (`ContainsItemWithTagName` /
+        // `PlayerEquippedItemWithTagName`).  That use only unlocks it
+        // (`log_nowUnlocked`); the next one opens it.  The original also
+        // locks the door again when the key item itself is used on it
+        // (`log_nowLocked`), which the port has no way to do.
+        if (t.isLocked && !t.tag.empty() && t.action == "Closed" && HasItemTagged(a, t.tag)) {
+            t.isLocked = false;
+            PlayDoorLockSound(t, DoorLockSound::kUnlocked);
+            Logf("The %s is now unlocked.", t.ShownName().c_str());
+            return true;
+        }
+        // Any other use of a locked door, open or closed, rattles it
+        // (`log_isLocked`).
+        if (t.isLocked) {
+            PlayDoorLockSound(t, DoorLockSound::kRattle);
+            if (whyNot != nullptr) *whyNot = "The " + t.ShownName() + " is locked.";
+            return false;
+        }
         // `Door::SetActivationState @005b2690` -- the same four-state string
         // machine a Container uses.
         SetDoorState(t, t.doorOpen ? "Closing" : "Opening");
@@ -7605,8 +7695,16 @@ bool Scene::UseSwitch(int32_t actor, int32_t target, std::string* whyNot) {
         if (static_cast<int32_t>(i) == target || o.tag != t.tag) continue;
         if (o.isDoor) {
             // `Door::MaybeUseEntity @005af330`: through a switch, reach is
-            // not tested and a locked door unlocks; then it opens or closes.
-            // The port has no door locks.
+            // not tested and a closed, locked door unlocks; then it opens or
+            // closes.  A locked door that isn't closed only rattles.
+            if (o.isLocked && o.action == "Closed") {
+                o.isLocked = false;
+                PlayDoorLockSound(o, DoorLockSound::kUnlocked);
+            }
+            if (o.isLocked) {
+                PlayDoorLockSound(o, DoorLockSound::kRattle);
+                continue;
+            }
             SetDoorState(o, o.doorOpen ? "Closing" : "Opening");
         } else if (o.className == "Actor") {
             // `Actor::MaybeUseEntity @0057d5e0`: a gun turret used through a
