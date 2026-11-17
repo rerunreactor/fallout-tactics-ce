@@ -28,6 +28,7 @@ It was checked against the code. In the source, every approximation is labelled 
 - The original's fixed 70 ms tick drives everything.
 - Animation is driven by the sprites, including frame events (footsteps, sounds, the moment a shot lands) and idle behaviour.
 - Movement uses an A* search over a one-unit grid, with the neighbour rule from the original, speeds taken from the sprites, facing, stances and auto-opening doors.
+- Doors lock. A locked door opens with its key, a switch that shares its tag, a script, or the Lockpick skill when its Chance to Unlock isn't 0.
 - Vehicles can be mounted, driven and fired in a simplified form, but so far only through the scripted `--vehicle` option.
 
 ### Combat
@@ -140,7 +141,7 @@ Differential-testing passes ran alongside milestones 22–25. Code comments tagg
 | Idle pauses | Actors breathe continuously. | The original pauses between idle cycles for a time we haven't recovered. |
 | What blocks movement | A tile blocks a cell if it rises more than 3 world units above it. | The original's occupancy test isn't recovered. |
 | Crowding | Searching for a free spot stops after 8 rings. An actor replans after 3 blocked ticks. Actors don't step aside for each other; they wait. | The original's limits, and its local avoidance, aren't recovered. |
-| Doors | A door with a sensor opens and closes with the original's Sensor Open and Sensor Range rule. An Auto Close door closes Time Open seconds after it opens. Any other door opens for a walker within 9 world units, and then stays open. | How the original takes a walker through a door without a sensor isn't recovered. Two details aren't recovered either: the check an Auto Close door makes before it closes, and the timing of the sensor's rechecks. |
+| Doors | A door with a sensor opens and closes with the original's Sensor Open and Sensor Range rule. An Auto Close door closes Time Open seconds after it opens. Any other door opens for a walker within 9 world units, and then stays open. A locked door opens for nobody, and when closed it blocks movement. Where the navigation grid takes a roof or an upper storey above the door for the floor, it doesn't block, and neither do the walls beside it. | How the original takes a walker through a door without a sensor isn't recovered. Two details aren't recovered either: the check an Auto Close door makes before it closes, and the timing of the sensor's rechecks. |
 | Formations | The squad spawns on a ring of radius 6 world units around the spawn point. A group move spreads members over a fixed eight-slot ring. | `SpawnEntityGroupInFormation@004f5a10` and `ComputePlayerGroupCentroid@0049b770` aren't recovered. |
 | Animated tiles | One map-wide counter, one frame per tick. | Inferred from a sprite that plays the same frames, and from FreeFT. |
 | Smooth movement | Positions are interpolated between ticks. This is a port addition; `--no-interp` turns it off. | The original moves actors once per 70 ms tick and doesn't interpolate. |
@@ -172,15 +173,13 @@ Differential-testing passes ran alongside milestones 22–25. Code comments tagg
 - **Trigger conditions.** Right Click on Tab, Weapon Mode Equals, World Play Mode Equals and Multiplayer Map Restart always return false. None of the shipped missions uses them. Gui Open's "Main" is our in-mission menu, a guess.
 - **Quantity kinds.** These count as 0: Skill, Trait, OptionalTrait, Moving, Running, Unconscious. None of the shipped missions uses them. Attribute checks support only hit points and action points.
 - **Reputation.** The squad leader carries the campaign's reputation, as the original's actor does. Our campaign keeps one total, so a leader who changes between missions takes it along.
-- **Actions.** These are logged and do nothing:
-  - Play Bink Movie;
-  - Lock/Unlock Door.
+- **Actions.** Play Bink Movie is logged and does nothing.
 - **Timing.** Speech stays up for 4 s and world text for 5 s. Both are placeholders.
 - **Random ranges.** A random range in a condition uses its lower bound. Every shipped range has equal bounds, so this is exact on shipped data.
 - **Object script state.** Each object keeps its own on/off state, as the original does, and starts from its map record.
   - Setting it opens or closes a door. For lights, alarms, traps and turrets it only records the state; their own effects aren't modelled. A broken alarm ignores it.
   - A power node starts on and stays on until a script sets it, because the port keeps no power.
-  - Using a switch turns it on or off, and also works the doors and gun turrets that share its tag. A door opened this way stays open, unless it has a sensor or Auto Close.
+  - Using a switch turns it on or off, and also works the doors and gun turrets that share its tag. A door opened this way stays open, unless it has a sensor or Auto Close. A closed, locked door is unlocked first.
   - Using an alarm sets it off. Someone hostile to the alarm's side breaks it instead, and a broken alarm can't go off, even when a script sets it. What an alarm going off does to its side isn't modelled.
   - A science console (`ScienceSwitch`) works only through the Science skill. A plain use just describes it. A successful roll, against the console's Science Difficulty, throws it like a switch. Mission 25's generators, which share their console's tag, turn on or off with it.
 
@@ -247,7 +246,6 @@ See [the save format](../kit/formats/saves.md#how-our-writer-differs).
 | Targeted shots | No called-shot interface, so every shot is uncalled. |
 | Injuries | No crippled limbs or blinding. Knock-over and knockout criticals knock the target down; drop-weapon and weapon-damage criticals do nothing. |
 | Area damage | Grenades and other radial weapons hit only their target. |
-| Door locks | Doors have no lock state. Containers do, so lockpicking works on them. |
 | Spending level-ups | Squad members level up with the original's ladder and gains, but there's no screen to pick perks or spend skill points, so they accumulate. |
 | Random encounter forces | The roll and its spawn list are computed, but the rolled force isn't placed on the encounter map. |
 | Other campaigns | Only `bos.cam` loads. Custom single missions do load. |
@@ -281,7 +279,7 @@ None are open right now. Start with the bigger items below.
 | **Squad formation geometry.** | `SpawnEntityGroupInFormation@004f5a10` and `ComputePlayerGroupCentroid@0049b770` aren't recovered yet. |
 | **Character creation and modification.** | `WCharacter@00458b40` in its create mode. The art ships with the game. `ui_screens.cpp` already draws the character sheet. |
 | **Front-end options and credits.** | `WOptionsGameMenu@004acfe0`, and the main menu's command handler. |
-| **Local avoidance, door locks, injuries.** | `ComputeObstacleAvoidingMoveVector@00536290`, `Door::SetActivationState@005b2690`, and the critical-effect table in `RollCriticalEffectForBodyLocation@0061c550`. |
+| **Local avoidance, injuries.** | `ComputeObstacleAvoidingMoveVector@00536290`, and the critical-effect table in `RollCriticalEffectForBodyLocation@0061c550`. |
 | **Light in the to-hit sum and in detection.** | `TraceLightVisibilityToEntity`, called from `ComputeWeaponAttackHitChance@00615e80`. |
 
 ### Not planned

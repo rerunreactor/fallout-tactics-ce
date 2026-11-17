@@ -962,10 +962,11 @@ void MissionScript::ExecuteAction(Scene& scene, ScriptObj& a) {
         return;
     }
     if (k == "Lock/Unlock Door") {
-        // The door lock model is milestone 7's `Door::SetActivationState`,
-        // which has no lock state; logged rather than guessed.
-        Logf("door '%s' lock -> %s", a.Str("Door").c_str(),
-             a.Bool("LockState", true) ? "locked" : "unlocked");
+        // `ActionLockDoor::Vtable15 @00687160`; "LockState" defaults to true
+        // (`ActionLockDoor::ActionLockDoor @00686fd0`).
+        const bool locked = a.Bool("LockState", true);
+        const int32_t n = scene.ScriptLockDoors(a.Str("Door"), locked);
+        Logf("door '%s' %s (%d)", a.Str("Door").c_str(), locked ? "locked" : "unlocked", n);
         return;
     }
     if (k == "Center View") {
