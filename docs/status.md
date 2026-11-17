@@ -170,7 +170,7 @@ Differential-testing passes ran alongside milestones 22–25. Code comments tagg
 
 ### Mission scripting gaps
 
-- **Trigger conditions.** Right Click on Tab, Weapon Mode Equals, World Play Mode Equals and Multiplayer Map Restart always return false. None of the shipped missions uses them. Gui Open's "Main" is our in-mission menu, a guess.
+- **Trigger conditions.** Right Click on Tab, Weapon Mode Equals and Multiplayer Map Restart always return false. None of the shipped missions uses them. Gui Open's "Main" is our in-mission menu, a guess.
 - **Quantity kinds.** These count as 0: Skill, Trait, OptionalTrait, Moving, Running, Unconscious. None of the shipped missions uses them. Attribute checks support only hit points and action points.
 - **Reputation.** The squad leader carries the campaign's reputation, as the original's actor does. Our campaign keeps one total, so a leader who changes between missions takes it along.
 - **Actions.** Play Bink Movie is logged and does nothing.
